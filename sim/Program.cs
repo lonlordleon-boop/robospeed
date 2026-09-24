@@ -1,0 +1,312 @@
+using System;
+using RoboSpeed.Core;
+
+namespace RoboSpeed.Sim
+{
+    public static class Program
+    {
+        public static int Main(string[] args)
+        {
+            string mode = args.Length > 0 ? args[0] : "verify";
+
+            switch (mode)
+            {
+                case "verify":
+                    return Verify.Run();
+                case "sim":
+                    return RunSim(args);
+                case "sweep":
+                    return Sweep.Run(args);
+                case "sweep2":
+                    return Sweep.RunStructural(args);
+                case "sweep3":
+                    return Sweep.RunGuard(args);
+                case "deck":
+                    return Sweep.RunDeck(args);
+                case "strat":
+                    return Sweep.RunStrategies(args);
+                case "cost":
+                    return CostBench.Run(args);
+                case "scale":
+                    return CostBench.RunScale(args);
+                case "prism":
+                    return Sweep.RunPrism(args);
+                case "jam":
+                    return Sweep.RunJam(args);
+                case "line":
+                    return Sweep.RunLineSize(args);
+                case "mul":
+                    return Sweep.RunMulScale(args);
+                case "cap":
+                    return Sweep.RunOverwriteCap(args);
+                case "sub":
+                    return Sweep.RunSubColor(args);
+                case "run":
+                    return Sweep.RunEndless(args);
+                case "aim":
+                    return Sweep.RunAim(args);
+                case "diff":
+                    return Sweep.RunDiff(args);
+                case "strip":
+                    return Sweep.RunStrip(args);
+                case "curve":
+                    return Sweep.RunCurve(args);
+                case "tune":
+                    return Sweep.RunTune(args);
+                case "wall":
+                    return Sweep.RunWall(args);
+                case "repaint":
+                    return Sweep.RunRepaint(args);
+                default:
+                    Console.WriteLine("使い方: dotnet run -- verify | sim [試合数] | sweep [試合数]");
+                    return 1;
+            }
+        }
+
+        /// <summary>速攻 vs 役狙い を基準に、ガード多用も測る。仕様書 9-2。</summary>
+        private static int RunSim(string[] args)
+        {
+            int matches = 1000;
+            if (args.Length > 1) { int.TryParse(args[1], out matches); }
+
+            Balance bal = new Balance();
+            GameSimulator sim = new GameSimulator(bal);
+
+            Console.WriteLine("調整値: 本拠地 " + bal.BaseHp
+                + " / ガード係数 " + bal.GuardCoefficient
+                + " / 上書きロック " + bal.OverwriteLockMs + "ms"
+                + " / フリック " + bal.FlickMs + "ms");
+            Console.WriteLine();
+
+            // 基準ボットは「粘る打ち手」を使う。
+            // 8秒で見切る HandBot は、時間を使ったのに報酬が無い一番損な打ち方で、
+            // これを基準にすると倍率を過大に見積もってしまう（v1.4 で判明）。
+            IBot rush  = new RushBot();
+            IBot full  = new TargetBot(Hand.FullHouse);
+            IBot pure  = new TargetBot(Hand.PureColor);
+            IBot prism = new PrismBot();
+            // ガードは v1.10 で入口を外した（9-5v）ので、基準の対戦からも外す。
+            // ゲームに無い手をボットに打たせると、**測定値がゲームと食い違う。**
+            // GuardBot / ActionKind.Guard のコードは残してある（sweep3 で単体では測れる）。
+            Console.WriteLine(sim.Run(rush,  full,  matches, 12345).Report());
+            Console.WriteLine(sim.Run(rush,  pure,  matches, 23456).Report());
+            Console.WriteLine(sim.Run(rush,  prism, matches, 34567).Report());
+            Console.WriteLine(sim.Run(full,  pure,  matches, 45678).Report());
+            Console.WriteLine(sim.Run(full,  prism, matches, 56789).Report());
+            Console.WriteLine(sim.Run(pure,  prism, matches, 67890).Report());
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 実装が仕様書の計算と一致するかを確かめる。
+    /// 手計算と実装の両方を同時に検証できるので、最初にこれを通す。
+    /// </summary>
+    public static class Verify
+    {
+        public static int Run()
+        {
+            int failures = 0;
+            failures += CheckHandDistribution();
+            failures += CheckDistinctMakers();
+            failures += CheckCatalog();
+
+            Console.WriteLine();
+            if (failures == 0)
+            {
+                Console.WriteLine("すべて一致。役判定は仕様書 4-1 のとおり。");
+                return 0;
+            }
+            Console.WriteLine("不一致 " + failures + " 件。");
+            return 1;
+        }
+
+        /// <summary>
+        /// 5^5 = 3,125通りを全数走査し、仕様書 4-1 の組合せ数と突き合わせる。
+        /// 乱数ではなく全列挙なので、確率ではなく厳密な一致を確認できる。
+        /// </summary>
+        private static int CheckHandDistribution()
+        {
+            int[] actual = new int[7];
+            Manufacturer[] hand = new Manufacturer[Counts.Slots];
+
+            for (int a = 0; a < 5; a++)
+            for (int b = 0; b < 5; b++)
+            for (int c = 0; c < 5; c++)
+            for (int d = 0; d < 5; d++)
+            for (int e = 0; e < 5; e++)
+            {
+                hand[0] = (Manufacturer)a;
+                hand[1] = (Manufacturer)b;
+                hand[2] = (Manufacturer)c;
+                hand[3] = (Manufacturer)d;
+                hand[4] = (Manufacturer)e;
+                actual[(int)HandEvaluator.Evaluate(hand)]++;
+            }
+
+            // 仕様書 4-1 の表
+            var expected = new (Hand hand, int count, double pct)[]
+            {
+                (Hand.PureColor,       5, 0.16),
+                (Hand.FourOfAKind,   100, 3.20),
+                (Hand.Prism,         120, 3.84),
+                (Hand.FullHouse,     200, 6.40),
+                (Hand.ThreeOfAKind,  600, 19.20),
+                (Hand.TwoPair,       900, 28.80),
+                (Hand.OnePair,      1200, 38.40),
+            };
+
+            Console.WriteLine("=== 役の分布（5^5 = 3,125通りを全数走査）===");
+            Console.WriteLine("{0,-14} {1,8} {2,8} {3,9} {4,9}  {5}",
+                "役", "実装", "仕様書", "実測率", "仕様率", "判定");
+
+            int failures = 0;
+            int total = 0;
+            foreach (var e in expected)
+            {
+                int got = actual[(int)e.hand];
+                total += got;
+                double gotPct = got * 100.0 / 3125.0;
+                bool ok = got == e.count && Math.Abs(gotPct - e.pct) < 0.005;
+                if (!ok) { failures++; }
+                Console.WriteLine("{0,-14} {1,8} {2,8} {3,8:F2}% {4,8:F2}%  {5}",
+                    HandEvaluator.NameOf(e.hand), got, e.count, gotPct, e.pct, ok ? "OK" : "不一致");
+            }
+
+            Console.WriteLine("{0,-14} {1,8} {2,8}", "合計", total, 3125);
+            if (total != 3125)
+            {
+                Console.WriteLine("合計が 3,125 にならない。数え漏れがある。");
+                failures++;
+            }
+            return failures;
+        }
+
+        /// <summary>
+        /// 必殺技の選択肢の数＝使ったメーカーの数。仕様書 6-2c の表と突き合わせる。
+        /// </summary>
+        private static int CheckDistinctMakers()
+        {
+            Console.WriteLine();
+            Console.WriteLine("=== 必殺技の選択肢の数（役ごとの最小・最大）===");
+
+            int[] min = new int[7];
+            int[] max = new int[7];
+            for (int i = 0; i < 7; i++) { min[i] = int.MaxValue; }
+
+            Manufacturer[] hand = new Manufacturer[Counts.Slots];
+            for (int a = 0; a < 5; a++)
+            for (int b = 0; b < 5; b++)
+            for (int c = 0; c < 5; c++)
+            for (int d = 0; d < 5; d++)
+            for (int e = 0; e < 5; e++)
+            {
+                hand[0] = (Manufacturer)a;
+                hand[1] = (Manufacturer)b;
+                hand[2] = (Manufacturer)c;
+                hand[3] = (Manufacturer)d;
+                hand[4] = (Manufacturer)e;
+                int h = (int)HandEvaluator.Evaluate(hand);
+                int n = HandEvaluator.DistinctMakers(hand);
+                if (n < min[h]) { min[h] = n; }
+                if (n > max[h]) { max[h] = n; }
+            }
+
+            // 仕様書 6-2c の表
+            var expected = new (Hand hand, int options)[]
+            {
+                (Hand.PureColor,    1),
+                (Hand.FourOfAKind,  2),
+                (Hand.FullHouse,    2),
+                (Hand.ThreeOfAKind, 3),
+                (Hand.TwoPair,      3),
+                (Hand.OnePair,      4),
+                (Hand.Prism,        5),
+            };
+
+            int failures = 0;
+            foreach (var e in expected)
+            {
+                int h = (int)e.hand;
+                bool ok = min[h] == e.options && max[h] == e.options;
+                if (!ok) { failures++; }
+                Console.WriteLine("{0,-14} 実装 {1}〜{2}   仕様書 {3}   {4}",
+                    HandEvaluator.NameOf(e.hand), min[h], max[h], e.options, ok ? "OK" : "不一致");
+            }
+            return failures;
+        }
+
+        /// <summary>
+        /// 図鑑の機体数を全数走査で確かめる。仕様書 5-2b。
+        ///
+        /// エントリ ＝ **本体（役 × 主色）＝ 35型だけ。** ★v1.10 で 285 → 35
+        /// 武器（副色）と背中（第三色）での枝分かれは廃止した。
+        /// 絵が1体につき1枚しかなく、装備が変わっても見た目が変わらないため。
+        ///
+        /// 副色を求める関数（SubMakerOf / ThirdMakerOf）は残してある。
+        /// 戦闘での使い道（9-5n）が別にあり、そちらはまだ捨てていない。
+        /// </summary>
+        private static int CheckCatalog()
+        {
+            Console.WriteLine();
+            Console.WriteLine("=== 図鑑の機体数（5^5 = 3,125通りを全数走査）===");
+
+            var bodies = new System.Collections.Generic.HashSet<int>();
+            var perBody = new System.Collections.Generic.HashSet<int>[7];
+            for (int i = 0; i < 7; i++)
+            {
+                perBody[i] = new System.Collections.Generic.HashSet<int>();
+            }
+
+            Workbench bench = new Workbench();
+            for (int a = 0; a < 5; a++)
+            for (int b = 0; b < 5; b++)
+            for (int c = 0; c < 5; c++)
+            for (int d = 0; d < 5; d++)
+            for (int e = 0; e < 5; e++)
+            {
+                int[] m = { a, b, c, d, e };
+                bench.Clear(null);
+                for (int s = 0; s < Counts.Slots; s++)
+                {
+                    bench.Install(new MechaCard((Manufacturer)m[s], (PartSlot)s));
+                }
+
+                int hand = (int)bench.EvaluateHand();
+                int p = SpecialMoves.PrimaryMakerOf(bench);
+
+                bodies.Add(hand * 8 + p);
+                perBody[hand].Add(p);
+            }
+
+            // 仕様書 5-2b の表。**どの役でも主色は5通り。**
+            var expect = new (Hand hand, int body)[]
+            {
+                (Hand.OnePair,      5),
+                (Hand.TwoPair,      5),
+                (Hand.ThreeOfAKind, 5),
+                (Hand.FullHouse,    5),
+                (Hand.Prism,        5),
+                (Hand.FourOfAKind,  5),
+                (Hand.PureColor,    5),
+            };
+
+            Console.WriteLine("{0,-14} {1,6} {2,6}  {3}", "役", "機体", "仕様書", "判定");
+
+            int failures = 0;
+            foreach (var x in expect)
+            {
+                int h = (int)x.hand;
+                bool ok = perBody[h].Count == x.body;
+                if (!ok) { failures++; }
+                Console.WriteLine("{0,-14} {1,6} {2,6}  {3}",
+                    HandEvaluator.NameOf(x.hand), perBody[h].Count, x.body, ok ? "OK" : "不一致");
+            }
+
+            Console.WriteLine("{0,-14} {1,6} {2,6}  {3}",
+                "合計", bodies.Count, 35, bodies.Count == 35 ? "OK" : "不一致");
+            if (bodies.Count != 35) { failures++; }
+            return failures;
+        }
+    }
+}

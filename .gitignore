@@ -1,0 +1,96 @@
+# =========================================================================
+# git に入れないもの（tools/make-gitignore.mjs が作る・手で直さない）
+# =========================================================================
+
+# ---- 別のプロジェクト・大きすぎるもの ----
+QuarterTest/
+_upload/
+scratchpad/
+
+# ---- 機械が作り直せるもの ----
+node_modules/
+app/node_modules/
+app/www/
+app/android/
+app/ios/
+app/node_modules/
+*.log
+
+# ---- 鍵とパスワード（保険。本来この中には無い）----
+*.jks
+*.keystore
+*.key
+gamedb.php
+local.properties
+.gradle/
+*.local.json
+
+# ---- 絵の元データ 1.4GB ----
+# **全部無視してから、アプリが実際に読むものだけ戻す。**
+# 戻す一覧は playtest.html を読んで機械が作っている（64 個）。
+docs/mecha/**
+!docs/mecha/**/
+!docs/mecha/bench/b_arm.png
+!docs/mecha/bench/b_head.png
+!docs/mecha/bench/b_leg.png
+!docs/mecha/bench/b_torso.png
+!docs/mecha/bench/b_waist.png
+!docs/mecha/card/em_blue.png
+!docs/mecha/card/em_green.png
+!docs/mecha/card/em_purple.png
+!docs/mecha/card/em_red.png
+!docs/mecha/card/em_yellow.png
+!docs/mecha/card/plate_hud.png
+!docs/mecha/card/sym_go.png
+!docs/mecha/card/sym_over.png
+!docs/mecha/fx/c_r2_4_t.png
+!docs/mecha/fx/c_r3_5_t.png
+!docs/mecha/fx/p_best_a_t.png
+!docs/mecha/fx/q_king_2_t.png
+!docs/mecha/game/h0_blue.png
+!docs/mecha/game/h0_green.png
+!docs/mecha/game/h0_purple.png
+!docs/mecha/game/h0_red.png
+!docs/mecha/game/h0_yellow.png
+!docs/mecha/game/h1_blue.png
+!docs/mecha/game/h1_green.png
+!docs/mecha/game/h1_purple.png
+!docs/mecha/game/h1_red.png
+!docs/mecha/game/h1_yellow.png
+!docs/mecha/game/h2_blue.png
+!docs/mecha/game/h2_green.png
+!docs/mecha/game/h2_purple.png
+!docs/mecha/game/h2_red.png
+!docs/mecha/game/h2_yellow.png
+!docs/mecha/game/h3_blue.png
+!docs/mecha/game/h3_green.png
+!docs/mecha/game/h3_purple.png
+!docs/mecha/game/h3_red.png
+!docs/mecha/game/h3_yellow.png
+!docs/mecha/game/h4_blue.png
+!docs/mecha/game/h4_green.png
+!docs/mecha/game/h4_purple.png
+!docs/mecha/game/h4_red.png
+!docs/mecha/game/h4_yellow.png
+!docs/mecha/game/h5_blue.png
+!docs/mecha/game/h5_green.png
+!docs/mecha/game/h5_purple.png
+!docs/mecha/game/h5_red.png
+!docs/mecha/game/h5_yellow.png
+!docs/mecha/game/h6_blue.png
+!docs/mecha/game/h6_green.png
+!docs/mecha/game/h6_purple.png
+!docs/mecha/game/h6_red.png
+!docs/mecha/game/h6_yellow.png
+!docs/mecha/m_arm.png
+!docs/mecha/m_head.png
+!docs/mecha/m_leg.png
+!docs/mecha/m_torso.png
+!docs/mecha/m_waist.png
+!docs/mecha/title/bg_bright_c.jpg
+!docs/mecha/title/logo1.png
+!docs/mecha/video/pure_blue.mp4
+!docs/mecha/video/pure_green.mp4
+!docs/mecha/video/pure_purple.mp4
+!docs/mecha/video/pure_red.mp4
+!docs/mecha/video/pure_yellow.mp4

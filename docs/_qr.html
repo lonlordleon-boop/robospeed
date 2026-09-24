@@ -1,0 +1,118 @@
+<meta charset="utf-8">
+<style>
+html,body{margin:0;background:#fff;font:14px/1.6 system-ui,sans-serif;color:#111}
+.wrap{padding:18px;display:flex;gap:24px;align-items:center}
+canvas{image-rendering:pixelated;border:10px solid #fff;box-shadow:0 0 0 1px #ddd}
+.u{font:600 20px/1.5 ui-monospace,monospace}
+.n{color:#666;font-size:13px}
+</style>
+<div class="wrap">
+  <canvas id="qr"></canvas>
+  <div>
+    <div class="u" id="url"></div>
+    <div class="n">スマホを同じWi-Fiにつないで、このQRを読むか、上のURLを入力してください。</div>
+  </div>
+</div>
+<script>
+/* --- 最小のQRエンコーダ（バイトモード・誤り訂正L・型番自動 1〜10） --------------
+   外部ライブラリを入れずに済ませるため、必要な範囲だけ自前で実装する。 */
+const EXP=new Uint8Array(512), LOG=new Uint8Array(256);
+(()=>{let x=1;for(let i=0;i<255;i++){EXP[i]=x;LOG[x]=i;x<<=1;if(x&0x100)x^=0x11d;}for(let i=255;i<512;i++)EXP[i]=EXP[i-255];})();
+const mul=(a,b)=>(a===0||b===0)?0:EXP[LOG[a]+LOG[b]];
+function rsGen(n){let p=[1];for(let i=0;i<n;i++){const q=[1,EXP[i]],r=new Array(p.length+1).fill(0);
+  for(let a=0;a<p.length;a++)for(let b=0;b<2;b++)r[a+b]^=mul(p[a],q[b]);p=r;}return p;}
+function rsEnc(data,n){const g=rsGen(n),res=new Array(n).fill(0);
+  for(const d of data){const f=d^res[0];res.shift();res.push(0);
+    if(f!==0)for(let i=0;i<n;i++)res[i]^=mul(g[i+1],f);}return res;}
+/* 型番ごとの [総コードワード, ECコードワード数(L)] */
+const CAP=[null,[26,7],[44,10],[70,15],[100,20],[134,26],[172,18],[196,20],[242,24],[292,30],[346,18]];
+const BLOCKS={1:1,2:1,3:1,4:1,5:1,6:2,7:2,8:2,9:2,10:4};
+const ALIGN={1:[],2:[6,18],3:[6,22],4:[6,26],5:[6,30],6:[6,34],7:[6,22,38],8:[6,24,42],9:[6,26,46],10:[6,28,50]};
+function encode(text){
+  const bytes=new TextEncoder().encode(text);
+  let ver=0;
+  for(let v=1;v<=10;v++){const [tot,ec]=CAP[v];const cap=tot-ec*BLOCKS[v];
+    const cci=v<10?8:16;const need=Math.ceil((4+cci+bytes.length*8)/8);
+    if(need<=cap){ver=v;break;}}
+  if(!ver)throw new Error("長すぎる");
+  const [tot,ecw]=CAP[ver], nb=BLOCKS[ver], dataCw=tot-ecw*nb;
+  /* ビット列を作る */
+  const bits=[];const put=(v,n)=>{for(let i=n-1;i>=0;i--)bits.push((v>>i)&1);};
+  put(4,4); put(bytes.length, ver<10?8:16);
+  for(const b of bytes)put(b,8);
+  const rem=dataCw*8-bits.length; put(0,Math.min(4,rem));
+  while(bits.length%8)bits.push(0);
+  const cw=[];for(let i=0;i<bits.length;i+=8){let v=0;for(let j=0;j<8;j++)v=(v<<1)|bits[i+j];cw.push(v);}
+  const pad=[0xEC,0x11];let pi=0;while(cw.length<dataCw)cw.push(pad[pi++%2]);
+  /* ブロック分割 → インターリーブ */
+  const per=Math.floor(dataCw/nb), extra=dataCw%nb;
+  const dblk=[],eblk=[];let off=0;
+  for(let i=0;i<nb;i++){const n=per+(i>=nb-extra?1:0);const d=cw.slice(off,off+n);off+=n;
+    dblk.push(d);eblk.push(rsEnc(d,ecw));}
+  const out=[];
+  const maxD=Math.max(...dblk.map(b=>b.length));
+  for(let i=0;i<maxD;i++)for(const b of dblk)if(i<b.length)out.push(b[i]);
+  for(let i=0;i<ecw;i++)for(const b of eblk)out.push(b[i]);
+  /* 配置 */
+  const size=17+ver*4;
+  const m=Array.from({length:size},()=>new Array(size).fill(null));
+  const fn=Array.from({length:size},()=>new Array(size).fill(false));
+  const setF=(r,c,v)=>{m[r][c]=v;fn[r][c]=true;};
+  const finder=(r,c)=>{for(let i=-1;i<8;i++)for(let j=-1;j<8;j++){
+    const y=r+i,x=c+j;if(y<0||x<0||y>=size||x>=size)continue;
+    const on=(i>=0&&i<=6&&(j===0||j===6))||(j>=0&&j<=6&&(i===0||i===6))||(i>=2&&i<=4&&j>=2&&j<=4);
+    setF(y,x,on?1:0);}};
+  finder(0,0);finder(0,size-7);finder(size-7,0);
+  for(let i=8;i<size-8;i++){setF(6,i,i%2===0?1:0);setF(i,6,i%2===0?1:0);}
+  for(const a of ALIGN[ver])for(const b of ALIGN[ver]){
+    if((a===6&&b===6)||(a===6&&b===size-7)||(a===size-7&&b===6))continue;
+    for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++)
+      setF(a+i,b+j,(Math.abs(i)===2||Math.abs(j)===2||(i===0&&j===0))?1:0);}
+  setF(size-8,8,1);                                   /* 常に暗 */
+  for(let i=0;i<9;i++){if(!fn[8][i])setF(8,i,0);if(!fn[i][8])setF(i,8,0);}
+  for(let i=0;i<8;i++){if(!fn[8][size-1-i])setF(8,size-1-i,0);if(!fn[size-1-i][8])setF(size-1-i,8,0);}
+  /* データを蛇行配置（マスク0） */
+  let bi=0;const bit=()=>{const v=(bi<out.length*8)?((out[bi>>3]>>(7-(bi&7)))&1):0;bi++;return v;};
+  let up=true;
+  for(let col=size-1;col>0;col-=2){
+    if(col===6)col--;
+    for(let k=0;k<size;k++){
+      const row=up?size-1-k:k;
+      for(let c=0;c<2;c++){const x=col-c;
+        if(fn[row][x])continue;
+        let v=bit();
+        if(((row+x)%2)===0)v^=1;               /* マスクパターン0 */
+        m[row][x]=v;}}
+    up=!up;}
+  /* 形式情報：ECレベルL + マスク0 の15ビット（BCH済みの既知値）。
+     **ビット番号 k は 0 が最下位。** k をそのまま所定の位置へ置く。
+     複製1は左上、複製2は右上＋左下。左下は k=0..6 の7個だけで、
+     (size-8,8) は暗モジュールなので踏まない。 */
+  const fmt=0b111011111000100;
+  for(let k=0;k<15;k++){
+    const b=(fmt>>k)&1;
+    // 複製1：k=0..8 は8列目を下へ、k=9..14 は8行目を左へ
+    if(k<=5)       m[k][8]=b;
+    else if(k===6) m[7][8]=b;
+    else if(k===7) m[8][8]=b;
+    else if(k===8) m[8][7]=b;
+    else           m[8][14-k]=b;
+    // 複製2：k=0..7 は8行目を右端から左へ、k=8..14 は8列目を下端へ
+    if(k<=7) m[8][size-1-k]=b;
+    else     m[size-15+k][8]=b;}
+  m[size-8][8]=1;                       // 常に暗いモジュール
+  return m;
+}
+const URL_ = location.hash ? decodeURIComponent(location.hash.slice(1))
+                           : (new URLSearchParams(location.search).get('u') || location.origin + '/playtest.html');
+document.getElementById('url').textContent = URL_;
+const m = encode(URL_);
+const S = m.length, PX = 12, Q = 4;
+const cv = document.getElementById('qr');
+cv.width = cv.height = (S + Q*2) * PX;
+const g = cv.getContext('2d');
+g.fillStyle = '#fff'; g.fillRect(0,0,cv.width,cv.height);
+g.fillStyle = '#000';
+for (let r=0;r<S;r++) for (let c=0;c<S;c++) if (m[r][c]) g.fillRect((c+Q)*PX,(r+Q)*PX,PX,PX);
+document.title = "QR " + URL_;
+</script>

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AID GAMES</title>
+<meta name="description" content="AID GAMES が作っているゲームの置き場です。">
+<!--
+  =========================================================================
+  aidgames.jp の入口
+  =========================================================================
+
+  ■ 置き場所
+      /home/caoipsov/public_html/aidgames.jp/index.html
+
+  ■ 何のためにあるか
+      1. Google Play の掲載情報に載せる「ウェブサイト」を空にしない
+      2. AdMob の app-ads.txt を置くドメインとして、実体があることを示す
+      3. プライバシーポリシーへの入口
+      4. ディレクトリ一覧が出るのを塞ぐ（.htaccess の Options -Indexes と二重の備え）
+
+  ■ ここにゲーム本体は置かない（2026-09-09 に決めた）
+      **ストアから来た人が、広告なし・インストール不要の同じものを
+      ここで遊べてしまうと、アプリを入れる理由が無くなる。**
+      ブラウザ版は avfan.mixh.jp/games/robospeed/ に既にあり、
+      そちらは既存のフォロワー向けの窓口として残す。
+      置きたくなったらいつでも置ける。**引っ込めるほうが難しい**ので、
+      順番としてこちらを先にした。
+
+  ■ リリースしたら直すところ
+      下の「まだ公開していません」の段を、Google Play へのリンクに差し替える。
+      場所は ★STORE_LINK のコメントで印を付けてある。
+
+  ■ 盛らない
+      作ったものが1本しかないうちに、会社案内めいた文章を並べない。
+      **在るものだけを書く。** 出していないものを「配信中」と書かない。
+  =========================================================================
+-->
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 48px 20px 72px;
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    line-height: 1.8; color: #12171a; background: #fff;
+    display: flex; justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 640px; }
+  h1 { font-size: 26px; letter-spacing: .06em; margin: 0 0 2px; }
+  .sub { font-size: 13px; color: #5c676d; margin: 0 0 40px; }
+  h2 { font-size: 15px; margin: 36px 0 10px; padding-top: 18px; border-top: 1px solid #d5dcdf; }
+  p { font-size: 14px; margin: 0 0 10px; }
+  .card {
+    display: block; text-decoration: none; color: inherit;
+    border: 1px solid #d5dcdf; border-radius: 10px; padding: 18px 20px;
+    transition: border-color .15s, background .15s;
+  }
+  .card:hover { border-color: #00756c; background: rgba(0,117,108,.05); }
+  .card .t { font-size: 19px; font-weight: 700; letter-spacing: .04em; margin-bottom: 6px; }
+  .card .d { font-size: 14px; margin: 0 0 12px; }
+  .card .s { font-size: 13px; color: #00756c; margin: 0; font-weight: 700; }
+  .note { font-size: 13px; color: #5c676d; margin: 12px 0 0; }
+  /* テスター募集の帯。**カードの外に置く。** カードの中に入れると
+     「ROBO SPEED を見る」なのか「募集を見る」なのか、押す先が読めない。 */
+  .recruit {
+    display: block; text-decoration: none; color: inherit;
+    margin: 14px 0 0; padding: 14px 16px;
+    border: 1px solid #00756c; border-left-width: 4px; border-radius: 8px;
+    background: rgba(0,117,108,.06);
+  }
+  .recruit:hover { background: rgba(0,117,108,.12); }
+  .recruit .t { display: block; font-size: 15px; font-weight: 700; color: #00756c; margin-bottom: 2px; }
+  .recruit .d { display: block; font-size: 13px; color: #5c676d; }
+  ul { padding-left: 1.3em; margin: 0; }
+  li { font-size: 14px; }
+  a { color: #00756c; }
+  footer { margin-top: 48px; font-size: 12px; color: #7a848a; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e8ecee; background: #14181b; }
+    .sub, .note, .recruit .d, footer { color: #98a3a9; }
+    h2, .card { border-color: #39424a; }
+    .card .s { color: #2ec4b6; }
+    .card:hover { border-color: #2ec4b6; background: rgba(46,196,182,.08); }
+    .recruit { border-color: #2ec4b6; background: rgba(46,196,182,.09); }
+    .recruit:hover { background: rgba(46,196,182,.16); }
+    .recruit .t { color: #2ec4b6; }
+    a { color: #2ec4b6; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>AID GAMES</h1>
+  <p class="sub">個人でゲームを作っています。</p>
+
+  <h2>作っているもの</h2>
+
+  <a class="card" href="/robospeed/">
+    <div class="t">ROBO SPEED</div>
+    <p class="d">
+      カードを5枚そろえてロボットを組み立て、撃つ。色の揃いかたで威力が決まります。
+      敵は倒すたびに速くなり、弱い役で早く撃つか、殴られるのを覚悟で強い役を待つかの判断が、
+      そのまま撃破数の差になります。Android 向け。
+    </p>
+    <p class="s">画面写真と詳しい説明を見る →</p>
+  </a>
+
+  <!-- ★RECRUIT_STATUS 12人そろったら、この段を消す。
+       ★STORE_LINK 公開されたら、ここをストアのリンクに差し替える。
+       例：<p><a href="https://play.google.com/store/apps/details?id=jp.aid.robospeed">Google Play で入手する</a></p> -->
+  <a class="recruit" href="/robospeed/test.html">
+    <span class="t">テスターを募集しています</span>
+    <span class="d">Google Play で公開するために、12人のテスターが必要です。参加は3分ほど。→ 詳しくはこちら</span>
+  </a>
+
+  <h2>資料</h2>
+  <ul>
+    <li><a href="/robospeed/">ROBO SPEED の紹介ページ</a></li>
+    <!-- ★RECRUIT_STATUS 12人そろったら、この行を消す -->
+    <li><a href="/robospeed/test.html">ROBO SPEED テスター募集のご案内</a></li>
+    <li><a href="/robospeed/privacy.html">ROBO SPEED プライバシーポリシー</a></li>
+  </ul>
+
+  <h2>お問い合わせ</h2>
+  <p>メール：<a href="mailto:aid.2019.run@gmail.com">aid.2019.run@gmail.com</a></p>
+
+  <footer>© AID GAMES</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dressup-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["D:/unity-box/QuarterTest/Tools/serve.js", "D:/unity-box/QuarterTest/Tools/preview", "8765"],
+      "port": 8765
+    },
+    {
+      "name": "robospeed-local",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-File", "D:/unity-box/serve.ps1"],
+      "port": 8080
+    }
+  ]
+}

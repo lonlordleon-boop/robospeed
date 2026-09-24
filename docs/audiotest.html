@@ -1,0 +1,204 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>効果音の聞き比べ — ロボ・スピード</title>
+
+<!--
+  効果音の聞き比べ。**ゲーム本体とは無関係。** 仕様には入れていない。
+
+    A案 … 純粋な電子音       （scratchpad/makese.ps1）
+    B案 … 金属・機械寄り     （scratchpad/makese_b.ps1）
+    C案 … SF・ハイテク寄り   （scratchpad/makese_c.ps1）
+    D案 … 重さ重視／ピコーン （scratchpad/makese_d.ps1）
+    E案 … ドカーン           （scratchpad/makese_e.ps1）
+
+  どれを採用するかを、実機で耳で決めるためのページ。
+  音は端末の操作がないと鳴らないので、**最初に1回どこかを触る必要がある。**
+-->
+
+<style>
+  :root {
+    --ground:#e7eaec; --surface:#fff; --surface-2:#f3f5f6;
+    --ink:#12171a; --muted:#5c676d; --line:#c9d1d5; --accent:#00756c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ground:#14181b; --surface:#1d2226; --surface-2:#252b30;
+            --ink:#e8ecee; --muted:#8e9aa1; --line:#39424a; --accent:#2ec4b6; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN",sans-serif;
+    padding: max(14px, env(safe-area-inset-top)) 14px max(24px, env(safe-area-inset-bottom));
+    line-height:1.7;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { font-size:13px; color:var(--muted); margin:0 0 16px; }
+
+  .gate {
+    display:block; width:100%; padding:18px; margin:0 0 18px;
+    font:inherit; font-size:16px; font-weight:800;
+    border-radius:12px; border:2px solid var(--accent);
+    background:var(--accent); color:#fff; cursor:pointer;
+  }
+  .gate.done { background:var(--surface); color:var(--muted); border-color:var(--line); }
+
+  .row {
+    display:flex; align-items:center; gap:10px;
+    padding:12px; margin-bottom:10px;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+  }
+  .row .name { flex:1 1 auto; min-width:0; }
+  .row .name b { display:block; font-size:15px; }
+  .row .name span { font-size:12px; color:var(--muted); }
+  .row button {
+    flex:0 0 auto; width:52px; padding:11px 0;
+    font:inherit; font-size:12px; font-weight:800;
+    border-radius:9px; border:2px solid var(--line);
+    background:var(--surface-2); color:var(--ink); cursor:pointer;
+  }
+  .row button.b { border-color:var(--muted); color:var(--muted); }
+  .row button.c { border-color:var(--accent); color:var(--accent); }
+  /* D案（いちばん新しい）を、目を引く形にしておく */
+  .row button.d { border-color:var(--accent); background:var(--accent); color:#fff; }
+  .row button:disabled { opacity:.35; }
+
+  .note { font-size:12px; color:var(--muted); margin-top:18px; }
+  .note b { color:var(--ink); }
+</style>
+
+<div class="wrap">
+  <h1>効果音の聞き比べ</h1>
+  <p class="sub">A=電子 / B=金属 / C=SF / D=重い・ピコーン / E=ドカーン。★が採用中です。</p>
+
+  <button class="gate" id="gate">ここを押して音を有効にする</button>
+
+  <div id="list"></div>
+
+  <p class="note">
+    どちらが良いか、**場面ごとに**選べます（全部そろえる必要はありません）。
+    「A案の出撃とB案の被弾」のような混ぜ方もできます。<br>
+    音量・長さ・高さも数値で変えられるので、「もう少し短く」「もっと低く」でも構いません。
+  </p>
+</div>
+
+<script>
+"use strict";
+
+/* 場面と、その説明。ゲーム側の playSE の名前と対になっている。
+   4つ目は、その場面に用意してある案。**C案があるのは作り直した4つだけ。**
+   採用済みのものは ★ を付けてある。 */
+const ITEMS = [
+  ["start",  "ゲームスタート", "ピコーン",                     ["a","b","c","d"],     "d"],
+  ["tap",    "カードを置く",   "いちばん多く鳴る音",            ["a","b"],             "a"],
+  ["over",   "上書き",         "埋まっている部位を塗り替える",   ["a","b"],             "a"],
+  ["purge",  "パージ",         "4枚まとめて捨てる",             ["a","b"],             "b"],
+  ["launch", "出撃",           "組み上げた機体で撃つ",           ["a","b","c","d"],     "b"],
+  ["hit",    "被弾",           "撃破のD案を転用",               ["a","b","c","d","e"], "e"],
+  ["kill",   "撃破",           "ドカーン",                     ["a","b","c","d","e"], "e"],
+];
+
+let ctxReady = false;
+const EL = {};   // "tap_a" → Audio
+
+function build() {
+  const list = document.getElementById("list");
+  for (const [key, title, desc, vars, picked] of ITEMS) {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const name = document.createElement("div");
+    name.className = "name";
+    const b = document.createElement("b");
+    b.textContent = title;
+    const s = document.createElement("span");
+    s.textContent = desc + (picked ? "　★" + picked.toUpperCase() + "案を採用中" : "");
+    name.appendChild(b); name.appendChild(s);
+    row.appendChild(name);
+
+    for (const v of ["a", "b", "c", "d", "e"]) {
+      const btn = document.createElement("button");
+      btn.textContent = v.toUpperCase() + "案";
+      // いちばん新しい案（E）を目立たせ、古い案ほど控えめにする
+      if (v === "e") { btn.className = "d"; }
+      else if (v === "d" || v === "c") { btn.className = "c"; }
+      else if (v === "b") { btn.className = "b"; }
+      if (vars.indexOf(v) < 0) {
+        // その場面に無い案は、場所だけ空けて押せなくしておく（列を揃える）
+        btn.style.visibility = "hidden";
+      } else {
+        btn.disabled = true;
+        btn.dataset.k = key + "_" + v;
+        btn.addEventListener("click", () => play(btn.dataset.k));
+      }
+      row.appendChild(btn);
+    }
+    list.appendChild(row);
+  }
+}
+
+function srcOf(k) {
+  const p = k.split("_");
+  const base = "audio/se_" + p[0];
+  return (p[1] === "a") ? (base + ".wav") : (base + "_" + p[1] + ".wav");
+}
+
+/* 鳴らすのは **Web Audio**。ゲーム本体と同じ作りにしてある。
+   <audio> を並べると、端末の上限に当たって黙って鳴らなくなる（実機で発生）。 */
+let ctx = null;
+const BUF = {};
+
+function play(k) {
+  const buf = BUF[k];
+  if (!ctx || !buf) { return; }
+  try {
+    if (ctx.state === "suspended") { ctx.resume().catch(() => {}); }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.value = 0.75;
+    src.connect(g); g.connect(ctx.destination);
+    src.start(0);
+  } catch (e) {}
+}
+
+/* スマホは操作なしに音を鳴らせない。**押したときに文脈を動かす。** */
+document.getElementById("gate").addEventListener("click", () => {
+  if (ctxReady) { return; }
+  ctxReady = true;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const g = document.getElementById("gate");
+  if (!AC) { g.textContent = "この端末では音を鳴らせません"; return; }
+  try { ctx = new AC(); } catch (e) { g.textContent = "音を用意できませんでした"; return; }
+  if (ctx.state === "suspended") { ctx.resume().catch(() => {}); }
+
+  let left = 0;
+  for (const [key, , , vars] of ITEMS) {
+    for (const v of vars) {
+      const k = key + "_" + v;
+      left++;
+      fetch(srcOf(k))
+        .then((r) => r.arrayBuffer())
+        .then((ab) => new Promise((ok, ng) => {
+          const p = ctx.decodeAudioData(ab, ok, ng);
+          if (p && p.then) { p.then(ok).catch(ng); }
+        }))
+        .then((buf) => {
+          BUF[k] = buf;
+          const btn = document.querySelector('button[data-k="' + k + '"]');
+          if (btn) { btn.disabled = false; }
+        })
+        .catch(() => {})
+        .then(() => {
+          left--;
+          if (left <= 0) { g.textContent = "音は有効です。各ボタンを押してください"; }
+        });
+    }
+  }
+  g.textContent = "読み込み中…";
+  g.classList.add("done");
+});
+
+build();
+</script>

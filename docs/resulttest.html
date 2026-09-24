@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ロボ・スピード — 結果画面のテスト</title>
+<!--
+  =========================================================================
+  結果画面の見えかたを確かめるページ（9-6m）
+  =========================================================================
+
+  ■ これは何か
+    playtest.html の **結果画面だけ**を抜き出したもの。
+    走らずに、自己ベストの帯と、増えた数字の並びかたを見るためのページ。
+
+  ■ なぜ要るか
+    自己ベストの帯は「自己ベストを出したとき」しか見られない。
+    確かめるたびに自己ベストを更新しなければならないのでは、
+    **色や大きさを直すのに1回ずつ本気で遊ぶことになる。**
+    ステッカーのときに fxtest.html を作ったのと同じ理由。
+
+  ■ 大事な約束
+    CSS は playtest.html から **写したもの**で、参照ではない。
+    向こうを直したら、こちらも直すこと。逆も同じ。
+    （1ファイルに全部入れる作りなので、共有する手がない）
+
+  ■ 使いかた
+    右下の ≡ を押すと操作板が出る。
+    帯の出しかた（更新／はじめて／出さない）と、数字を変えられる。
+  =========================================================================
+-->
+<style>
+/* ---- 色。playtest.html と同じ ---- */
+:root {
+  --ground:     #e7eaec;
+  --surface:    #ffffff;
+  --surface-2:  #f3f5f6;
+  --ink:        #12171a;
+  --ink-2:      #3c464c;
+  --muted:      #5c676d;
+  --line:       #c9d1d5;
+  --line-soft:  #dde3e6;
+  --accent:     #00756c;
+  --accent-ink: #ffffff;
+  --good:       #1f7a4d;
+  --bad:        #b3352b;
+  --warn:       #a86b00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:    #14181b;
+    --surface:   #1d2226;
+    --surface-2: #252b30;
+    --ink:       #e8ecee;
+    --ink-2:     #c2cbd0;
+    --muted:     #8e9aa1;
+    --line:      #39424a;
+    --line-soft: #2c343a;
+    --accent:    #2ec4b6;
+    --accent-ink:#0d1114;
+    --good:      #4ec98a;
+    --bad:       #ff6b5e;
+    --warn:      #e0a63a;
+  }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+}
+
+/* ---- 結果画面。playtest.html の .sheet と同じ ---- */
+.sheet {
+  position: fixed; inset: 0; z-index: 60;
+  background: color-mix(in srgb, var(--ground) 92%, transparent);
+  overflow: auto; padding: 14px;
+}
+.sheet .inner { max-width: 640px; margin: 0 auto; }
+.sheet h2 { font-size: 16px; margin: 0 0 2px; }
+.sheet p.note { font-size: 12px; color: var(--muted); margin: 0 0 12px; line-height: 1.6; }
+.grp { border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+       padding: 10px 12px; margin-bottom: 10px; }
+.grp h3 { font-size: 12px; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+.btnrow { display: flex; gap: 8px; margin-top: 4px; }
+.btn {
+  flex: 1 1 0; padding: 11px; border-radius: 10px; border: 2px solid var(--line);
+  background: var(--surface); color: var(--ink); font-weight: 800; font-size: 14px; cursor: pointer;
+}
+.btn.primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.tiny { font-size: 11px; color: var(--muted); word-break: break-all;
+        font-variant-numeric: tabular-nums; }
+#resulttitle { font-size: 24px; font-weight: 900; margin: 0 0 2px; }
+
+table.res { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.res td { padding: 5px 2px; border-bottom: 1px solid var(--line-soft); }
+table.res td:last-child { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ---- ランキングの表。playtest.html と同じ ---- */
+table.rank { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.rank th {
+  font-size: 10px; color: var(--muted); font-weight: 700; text-align: left;
+  padding: 0 4px 6px; white-space: nowrap;
+}
+table.rank th.n, table.rank td.n { text-align: right; }
+table.rank td { padding: 7px 4px; border-top: 1px solid var(--line-soft); }
+table.rank td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.rank td.pos { width: 3.2em; text-align: right; font-weight: 900; color: var(--muted); }
+table.rank td.nm { font-weight: 700; max-width: 0; overflow: hidden;
+                   text-overflow: ellipsis; white-space: nowrap; }
+/* ---- 上位3人の王冠（v1.12b）----
+   **絵文字（👑）は使わない。** 端末ごとに絵が違ううえ、色が固定で
+   金・銀・銅を作り分けられない。SVG を直に書いて色だけ差し替える。
+   画像ファイルにもしない。3つで 1KB 足らずなので、**読み込みを待たせる価値が無い。**
+   `#` は URL の中では区切り記号なので、必ず %23 と書くこと（生の # だと絵が出ない）。 */
+table.rank td.nm .cr {
+  display: inline-block; width: 15px; height: 13px; margin-right: 5px;
+  vertical-align: -1px; background: center/contain no-repeat;
+}
+table.rank td.nm .cr1 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 21'%3E%3Cpath d='M3.4 15.4 1.9 4.2 7.4 8.3 12 1.7 16.6 8.3 22.1 4.2 20.6 15.4Z' fill='%23F5C518' stroke='%238A5E00' stroke-width='1.6' stroke-linejoin='round'/%3E%3Crect x='3.2' y='15.6' width='17.6' height='3.4' rx='1.3' fill='%23F5C518' stroke='%238A5E00' stroke-width='1.6'/%3E%3C/svg%3E"); }
+table.rank td.nm .cr2 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 21'%3E%3Cpath d='M3.4 15.4 1.9 4.2 7.4 8.3 12 1.7 16.6 8.3 22.1 4.2 20.6 15.4Z' fill='%23D2D9DE' stroke='%23767F86' stroke-width='1.6' stroke-linejoin='round'/%3E%3Crect x='3.2' y='15.6' width='17.6' height='3.4' rx='1.3' fill='%23D2D9DE' stroke='%23767F86' stroke-width='1.6'/%3E%3C/svg%3E"); }
+table.rank td.nm .cr3 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 21'%3E%3Cpath d='M3.4 15.4 1.9 4.2 7.4 8.3 12 1.7 16.6 8.3 22.1 4.2 20.6 15.4Z' fill='%23D08A45' stroke='%23804A16' stroke-width='1.6' stroke-linejoin='round'/%3E%3Crect x='3.2' y='15.6' width='17.6' height='3.4' rx='1.3' fill='%23D08A45' stroke='%23804A16' stroke-width='1.6'/%3E%3C/svg%3E"); }
+
+table.rank td.k { width: 4.2em; font-weight: 900; }
+table.rank td.a { width: 4.6em; color: var(--muted); }
+table.rank tr.top td.pos { color: var(--accent); }
+table.rank tr.me td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+table.rank tr.me td.nm::after { content: " ←"; color: var(--accent); font-weight: 900; }
+table.rank tr.r { cursor: pointer; }
+table.rank tr.r td.pos::after { content: "＋"; margin-left: 2px; font-size: 9px;
+                                font-weight: 700; color: var(--line); }
+table.rank tr.r.open td.pos::after { content: "－"; color: var(--accent); }
+table.rank tr.det td {
+  border-top: 0; padding: 0 4px 8px 3.4em;
+  font-size: 11px; line-height: 1.7; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+table.rank tr.det b { color: var(--ink-2); font-weight: 700; }
+/* 自分の行から開いたときは、内訳まで同じ色で続ける。**行が切れて見えないように。** */
+table.rank tr.me + tr.det td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
+/* ---- 自己ベストの帯。playtest.html と同じ（ここが今回の本題）---- */
+#pbband {
+  position: relative; overflow: hidden;
+  margin: calc(-1 * max(14px, env(safe-area-inset-top)))
+          calc(-1 * max(14px, env(safe-area-inset-right)))
+          14px
+          calc(-1 * max(14px, env(safe-area-inset-left)));
+  /* 上の余白は切り欠きぶんだけ足す（★v1.13a）。playtest.html と同じ。
+     14px 固定だと、実機で文字がステータスバーの下に潜る。 */
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
+  text-align: center; color: #2a1c00;
+  background: linear-gradient(100deg,
+    #a9750a 0%, #f0bd35 34%, #ffe9a6 50%, #f0bd35 66%, #a9750a 100%);
+  box-shadow: 0 -1px 0 rgba(0,0,0,.25) inset, 0 8px 16px rgba(0,0,0,.18);
+}
+#pbband.go { animation: pbIn .42s cubic-bezier(.2,.9,.3,1) both; }
+#pbband::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(-45deg,
+    rgba(255,255,255,.16) 0 10px, rgba(255,255,255,0) 10px 20px);
+}
+#pbband::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -50%; width: 40%;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(100deg,
+    rgba(255,255,255,0), rgba(255,255,255,.62), rgba(255,255,255,0));
+}
+#pbband.go::after { animation: pbShine 1.1s .3s ease-out 1 both; }
+/* 中身は2段。**「自己ベストおめでとう！」→ 数字** の順で目が動く。
+   主役の文字。**上の「自己ベスト」の見出しは外した**（v1.12b）。
+   本文が「自己ベストおめでとう！」なので、上にも同じ語を置くと2回言うことになる。
+
+   飾りは **金の板に字を打ち込んだ**見え方で作る。
+   上の縁に白い照り返し、下の縁を締めて、板から浮かせる影を落とす。
+   縁取り（-webkit-text-stroke）は使わない。900 の太字と重ねると、
+   **画数の多い漢字（「己」「新」など）の内側が潰れる。**
+
+   大きさは幅なり。12文字を 31px で置くと 375px の画面には収まらないので、
+   clamp で **画面の幅から決める。** 折り返すと帯が2段になり、締まりが無くなる。 */
+#pbband b {
+  position: relative; display: block;
+  font-size: clamp(21px, 6.6vw, 31px); font-weight: 900; font-style: italic;
+  line-height: 1.16; letter-spacing: .005em; color: #24180a;
+  text-shadow:
+     0 1px 0 rgba(255,255,255,.66),      /* 上の照り返し */
+     0 -1px 0 rgba(0,0,0,.14),           /* 下の縁を締める */
+     0 4px 7px rgba(105,68,0,.34);       /* 板から浮かせる影 */
+}
+/* 左右の飾り。**文字と一緒に縮む**ように em で持つ */
+#pbband b::before, #pbband b::after {
+  content: "✦"; font-size: .46em; font-style: normal; vertical-align: .34em;
+  color: #7a5300; text-shadow: 0 1px 0 rgba(255,255,255,.5);
+}
+#pbband b::before { margin-right: .5em; }
+#pbband b::after  { margin-left: .5em; }
+#pbband .d { position: relative; display: block; margin-top: 3px; font-size: 13px;
+             font-weight: 800; font-variant-numeric: tabular-nums; color: #4a3200; }
+@keyframes pbIn    { from { opacity: 0; transform: translateY(-10px) scaleY(.7); }
+                     to   { opacity: 1; transform: none; } }
+@keyframes pbShine { from { left: -50%; opacity: 1; } to { left: 110%; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #pbband.go { animation: none; }
+  #pbband.go::after { animation: none; }
+}
+
+/* =========================================================================
+   ここから下は **このテストページだけのもの。** ゲームには入れない
+   ========================================================================= */
+
+/* 操作板。既定では画面の外に出しておく。
+   結果画面を **本物と同じ幅で** 見たいので、板が場所を取ってはいけない。 */
+#panel {
+  position: fixed; z-index: 90; top: 0; right: 0; bottom: 0; width: min(300px, 86vw);
+  background: var(--surface); border-left: 1px solid var(--line);
+  padding: 14px; overflow: auto; font-size: 13px;
+  transform: translateX(100%); transition: transform .22s ease;
+  box-shadow: -8px 0 24px rgba(0,0,0,.18);
+}
+#panel.on { transform: none; }
+#panel h3 { font-size: 11px; letter-spacing: .1em; color: var(--muted);
+            margin: 14px 0 6px; }
+#panel h3:first-child { margin-top: 0; }
+#panel .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+#panel button {
+  flex: 1 1 auto; padding: 9px 8px; border-radius: 9px; border: 2px solid var(--line);
+  background: var(--surface-2); color: var(--ink); font-weight: 800; font-size: 12px;
+  cursor: pointer;
+}
+#panel button.on { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+#panel label { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+#panel label span { flex: 0 0 5.4em; color: var(--muted); font-size: 12px; }
+#panel input[type=number] {
+  flex: 1 1 auto; min-width: 0; padding: 7px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+  font-size: 13px; font-variant-numeric: tabular-nums;
+}
+#panel p { font-size: 11px; color: var(--muted); line-height: 1.6; margin: 8px 0 0; }
+#menu {
+  /* 帯の上に重なるので **下に置く。** 帯は画面の先頭に出るものなので、
+     操作板の入口とぶつけてはいけない（このページだけの都合） */
+  position: fixed; z-index: 91; bottom: 14px; right: 14px;
+  width: 40px; height: 40px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font-size: 17px; font-weight: 900; cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<button id="menu" title="操作板">≡</button>
+
+<div class="sheet" id="result">
+  <div class="inner">
+
+    <!-- ★今回の本題。結果画面の **いちばん上**、画面の端まで届く帯 -->
+    <div id="pbband" style="display:none">
+      <!-- 上の見出し（「自己ベスト」）は外した（v1.12b）。同じ語を2回言っていた -->
+      <b id="pbmain">自己ベストおめでとう！</b>
+      <span class="d" id="pbsub"></span>
+    </div>
+
+    <h2 id="resulttitle">—</h2>
+    <p class="note" id="resultnote">
+      ここが「続ける？」で広告を出す瞬間になります。どこまで行けたかを控えてください。</p>
+    <div class="grp"><table class="res" id="restable"></table></div>
+
+    <div class="grp">
+      <h3>オンラインランキング（見えかたの確認）</h3>
+      <table class="rank" id="ranktable"></table>
+      <p class="tiny" id="rankstate" style="margin:8px 0 0"></p>
+    </div>
+
+    <div class="btnrow">
+      <button class="btn primary" id="replay">もう一度この帯を見る</button>
+    </div>
+  </div>
+</div>
+
+<div id="panel">
+  <h3>帯の出しかた</h3>
+  <div class="row">
+    <button data-mode="best">自己ベスト更新</button>
+    <button data-mode="first">前の記録なし（帯は出ない）</button>
+  </div>
+  <div class="row">
+    <button data-mode="none">帯なし（更新できず）</button>
+  </div>
+
+  <h3>難易度</h3>
+  <div class="row">
+    <button data-diff="0">イージー</button>
+    <button data-diff="1">ノーマル</button>
+    <button data-diff="2">ハード</button>
+  </div>
+
+  <h3>この走りの数字</h3>
+  <label><span>撃破</span><input type="number" id="i_kills" value="33"></label>
+  <label><span>前の記録</span><input type="number" id="i_prev" value="28"></label>
+  <label><span>出撃</span><input type="number" id="i_launch" value="41"></label>
+  <label><span>平均(秒)</span><input type="number" id="i_avg" step="0.1" value="3.9"></label>
+  <label><span>最速(秒)</span><input type="number" id="i_fast" step="0.1" value="2.1"></label>
+  <label><span>連続攻撃</span><input type="number" id="i_chain" value="6"></label>
+
+  <p>
+    帯の色はテーマで変えていません。<b>金の帯に黒い字</b>で固定です。
+    暗いテーマにすると、周りだけが暗くなって帯はそのままなのが分かります。
+  </p>
+  <p>
+    順位表は<b>自分の行だけ最初から開いて</b>います。ほかの人は押すと開きます。
+    増えた数字（最速・最高連続攻撃・
+    まとめ撃破・役）はそこに入れました。列にすると、スマホの幅で
+    いちばん大事な「撃破」と「組立」が潰れるためです。
+  </p>
+</div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const DIFFS = ["イージー", "ノーマル", "ハード"];
+const HAND_NAME = ["ワンペア", "ツーペア", "スリーカード", "フルハウス",
+                   "フォーカード", "ファイブカード", "ピュアカラー"];
+
+/* いまの見せかた。playtest.html の showResult に渡る値と同じ形にしてある。 */
+const ST = { mode: "best", diff: 1 };
+
+function num(id, def) {
+  const v = parseFloat($(id).value);
+  return isFinite(v) ? v : def;
+}
+
+/** 結果画面を描き直す。**playtest.html の showResult と同じ順番で組む。** */
+function paint() {
+  const kills  = Math.max(0, Math.round(num("#i_kills", 33)));
+  const prev   = Math.max(0, Math.round(num("#i_prev", 28)));
+  const launch = Math.max(1, Math.round(num("#i_launch", 41)));
+  const avg    = num("#i_avg", 3.9);
+  const fast   = num("#i_fast", 2.1);
+  const chain  = Math.max(0, Math.round(num("#i_chain", 6)));
+
+  // 前の記録は、見せかたで決める。**「はじめて」は 0、「帯なし」は届かなかった値**
+  const goalBest = (ST.mode === "first") ? 0
+                 : (ST.mode === "none")  ? Math.max(prev, kills) : prev;
+
+  // ---- 帯 ----（showResult と同じ判定）
+  const band = $("#pbband");
+  // **前の記録が無いときは出さない**（9-6s）。走行中のステッカーと同じ規則
+  const isPb = goalBest > 0 && kills > goalBest;
+  band.style.display = isPb ? "" : "none";
+  if (isPb) {
+    $("#pbmain").textContent = "自己ベストおめでとう！";
+    $("#pbsub").textContent  = DIFFS[ST.diff] + "　" + goalBest + " 機 → " + kills + " 機（＋"
+                             + (kills - goalBest) + "）";
+    band.classList.remove("go"); void band.offsetWidth; band.classList.add("go");
+  }
+
+  $("#resulttitle").textContent = kills + " 機 撃破";
+
+  // ---- 表 ----（showResult のテトリス型と同じ並び）
+  const rows = [
+    ["倒した機体", kills + " 機"],
+    ["生き延びた時間", (kills * 23.4).toFixed(1) + " 秒"],
+    ["最後の敵の速さ", "3.5 秒"],
+    ["自分の出撃回数", launch + " 回"],
+    ["組み立ての平均速度", avg.toFixed(1) + " 秒"],
+    ["最速の組み立て", fast.toFixed(1) + " 秒"],
+    ["最高連続攻撃", chain + " 回"],
+    ["いちばん良かった役", HAND_NAME[5]],
+    ["図鑑", "新規 2 体 ／ 通算 18 / 35"],
+    ["上書き", "7 回"],
+    ["パージ", "1 回"],
+    ["攻撃で剥がした部位", launch + " 個"],
+  ];
+  $("#restable").innerHTML =
+    rows.map(r => "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td></tr>").join("");
+
+  // ---- 順位表 ----（renderRank と同じ組み立て）
+  const list = [
+    { name: "AID",   kills: 37, avgMs: 3600, fastMs: 2000, bestHand: 6, maxChain: 7, at: "2026-09-05" },
+    { name: "ノリ",  kills: 31, avgMs: 4100, fastMs: 2400, bestHand: 5, maxChain: 5, at: "2026-09-06" },
+    { name: "あなた", kills: kills, avgMs: Math.round(avg * 1000), fastMs: Math.round(fast * 1000),
+      bestHand: 5, maxChain: chain, at: "2026-09-07", me: true },
+    { name: "LON",   kills: 11, avgMs: 5200, fastMs: 3100, bestHand: 3, maxChain: 0, at: "2026-09-05" },
+  ].sort((x, y) => (y.kills - x.kills) || (x.avgMs - y.avgMs));
+
+  const head = '<tr><th class="n">順位</th><th>名前</th>'
+             + '<th class="n">撃破</th><th class="n">組立</th></tr>';
+  const body = list.map((r, i) => {
+    const cls = ["r"];
+    if (i < 3) { cls.push("top"); }
+    // 自分の行は **押さなくても開いておく。**（playtest.html と同じ）
+    if (r.me) { cls.push("me", "open"); }
+    const det = [
+      ["最速", r.fastMs ? (r.fastMs / 1000).toFixed(1) + "秒" : "—"],
+      ["最高連続攻撃", r.maxChain ? r.maxChain + " 回" : "—"],
+      ["最高の役", HAND_NAME[r.bestHand] || "—"],
+      ["登録日", r.at],
+    ].map(x => "<b>" + x[0] + "</b> " + x[1]).join("　");
+    // 上位3人には王冠（金・銀・銅）
+    const crown = (i < 3) ? '<span class="cr cr' + (i + 1) + '"></span>' : "";
+    return '<tr class="' + cls.join(" ") + '" data-i="' + i + '">'
+         + '<td class="n pos">' + (i + 1) + "</td>"
+         + '<td class="nm">' + crown + r.name + "</td>"
+         + '<td class="n k">' + r.kills + "</td>"
+         + '<td class="n a">' + (r.avgMs / 1000).toFixed(1) + "秒</td></tr>"
+         + '<tr class="det" data-d="' + i + '"' + (r.me ? "" : " hidden")
+         + '><td colspan="4">' + det + "</td></tr>";
+  }).join("");
+  $("#ranktable").innerHTML = head + body;
+  $("#rankstate").innerHTML = "全 " + list.length + " 人 ／ ほかの人の行を押すと、その人の内訳が出ます。"
+    + "<br>※ この表はこのテストページの中だけの見本です。";
+}
+
+/* 行を押したら内訳。**playtest.html と同じ、委譲で1回だけ。** */
+$("#ranktable").addEventListener("click", (e) => {
+  const tr = e.target.closest ? e.target.closest("tr.r") : null;
+  if (!tr) { return; }
+  const det = $("#ranktable").querySelector('tr.det[data-d="' + tr.dataset.i + '"]');
+  if (!det) { return; }
+  det.hidden = !det.hidden;
+  tr.classList.toggle("open", !det.hidden);
+});
+
+function paintPanel() {
+  for (const b of document.querySelectorAll("#panel [data-mode]")) {
+    b.classList.toggle("on", b.dataset.mode === ST.mode);
+  }
+  for (const b of document.querySelectorAll("#panel [data-diff]")) {
+    b.classList.toggle("on", parseInt(b.dataset.diff, 10) === ST.diff);
+  }
+}
+
+for (const b of document.querySelectorAll("#panel [data-mode]")) {
+  b.addEventListener("click", () => {
+    ST.mode = b.dataset.mode; paintPanel(); paint();
+    // 帯を見せるのが目的なので、選んだら板は引っ込める
+    $("#panel").classList.remove("on");
+  });
+}
+for (const b of document.querySelectorAll("#panel [data-diff]")) {
+  b.addEventListener("click", () => { ST.diff = parseInt(b.dataset.diff, 10); paintPanel(); paint(); });
+}
+for (const i of document.querySelectorAll("#panel input")) {
+  i.addEventListener("input", paint);
+}
+$("#menu").addEventListener("click", () => { $("#panel").classList.toggle("on"); });
+$("#replay").addEventListener("click", paint);
+
+paintPanel();
+paint();
+</script>
+</body>
+</html>

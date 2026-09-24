@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>プライバシーポリシー — ROBO SPEED</title>
+<!--
+  =========================================================================
+  プライバシーポリシー（仕様書 14-6）
+  =========================================================================
+
+  ■ 置き場所
+    https://aidgames.jp/robospeed/privacy.html
+    **Google Play の「プライバシーポリシー」欄に、このURLを入れる。**
+    アプリ内からも開けるようにしてある（設定画面）。
+
+  ■ 書くときの原則
+    **コードで確かめたことだけを書く。** 一般的な雛形を貼らない。
+    ここに書いた内容は Play の「データ セーフティ」の申告と
+    **一致していなければならない。** 食い違うと審査で止まる。
+
+    実際に送っているもの（rankSubmit / api/schema.sql で確認済み）:
+      name, kills, avgMs, fastMs, aliveMs, launches, bestHand,
+      maxChain, build, device, difficulty
+    サーバーが保存するもの:
+      上記 ＋ ip_hash（IPのハッシュ先頭16文字）, created_at
+
+  ■ 直したら
+    データセーフティの申告も見直すこと。片方だけ直さない。
+  =========================================================================
+-->
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0 auto; padding: 24px 18px 64px; max-width: 720px;
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    line-height: 1.9; color: #12171a; background: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e8ecee; background: #14181b; }
+    td, th { border-color: #39424a !important; }
+    .note { background: #1d2226 !important; border-color: #39424a !important; }
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; padding-top: 16px; border-top: 1px solid #c9d1d5; }
+  p, li { font-size: 14px; }
+  ul { padding-left: 1.3em; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+  th, td { border: 1px solid #c9d1d5; padding: 7px 9px; text-align: left; vertical-align: top; }
+  th { background: rgba(128,128,128,.12); font-weight: 700; }
+  .date { font-size: 13px; color: #5c676d; margin: 0 0 24px; }
+  .note { background: #f3f5f6; border: 1px solid #c9d1d5; border-radius: 8px; padding: 12px 14px; font-size: 13px; }
+  a { color: #00756c; }
+  @media (prefers-color-scheme: dark) { a { color: #2ec4b6; } }
+</style>
+</head>
+<body>
+
+<h1>プライバシーポリシー</h1>
+<p class="date">ROBO SPEED（ロボ・スピード）／ AID GAMES<br>制定日：2026年9月9日</p>
+
+<p>AID GAMES（以下「当方」）は、Android アプリ「ROBO SPEED」（以下「本アプリ」）における
+利用者の情報の取り扱いについて、以下のとおり定めます。</p>
+
+<h2>1. 収集する情報</h2>
+
+<p>本アプリは、<strong>アカウント登録を必要としません。</strong>
+氏名・住所・電話番号・メールアドレスなど、個人を直接特定する情報は取得しません。</p>
+
+<p>オンラインランキングに記録を登録したときに限り、次の情報が当方のサーバーへ送信されます。
+<strong>登録しなければ送信されません。</strong></p>
+
+<table>
+  <tr><th>項目</th><th>内容</th><th>目的</th></tr>
+  <tr><td>プレイヤー名</td><td>利用者が入力した12文字までの文字列</td><td>ランキングに表示するため</td></tr>
+  <tr><td>成績</td><td>撃破数、組み立ての平均・最速時間、生存時間、出撃回数、最高の役、最高連続攻撃数、難易度</td><td>順位を決め、表示するため</td></tr>
+  <tr><td>アプリの版</td><td>アプリのビルド番号</td><td>どの調整で出た記録かを区別するため</td></tr>
+  <tr><td>端末識別子</td><td>本アプリが端末内で生成した<strong>16桁の乱数</strong></td><td>1つの端末につき1件の記録に保つため</td></tr>
+</table>
+
+<div class="note">
+  <strong>端末識別子について。</strong>
+  これは本アプリが初回起動時に自作した乱数であり、広告IDや端末の製造番号ではありません。
+  他のアプリやサービスと共有されず、個人を特定する用途にも使いません。
+  アプリを削除すると失われ、再インストール時には別の値が作られます。
+</div>
+
+<h2>2. IPアドレスの取り扱い</h2>
+
+<p>記録の連続投稿を抑えるため、送信元IPアドレスを<strong>ハッシュ化した文字列の先頭16文字</strong>のみ保存します。
+<strong>IPアドレスそのものは保存しません。</strong>この文字列から元のIPアドレスを復元することはできません。</p>
+
+<h2>3. 端末内にのみ保存される情報</h2>
+
+<p>次の情報は端末内（ブラウザの保存領域）に保存され、<strong>当方のサーバーへは送信されません。</strong></p>
+
+<ul>
+  <li>図鑑の収集状況</li>
+  <li>難易度ごとの自己ベスト、通算の組み立て記録</li>
+  <li>音量や難易度などの設定、ランキング用に入力した名前</li>
+</ul>
+
+<p>これらはアプリの削除、またはアプリのデータ消去によって失われます。</p>
+
+<h2>4. 広告について</h2>
+
+<p>本アプリは、Google が提供する広告配信サービス <strong>Google AdMob</strong> を利用しています。
+広告は、走行が終わった結果画面と、一時停止中にのみ表示されます。</p>
+
+<p>AdMob は広告の配信・効果測定のために、広告識別子（Advertising ID）などの情報を取得することがあります。
+これは Google が取得するものであり、<strong>当方はその内容を受け取りません。</strong></p>
+
+<p>取り扱いの詳細および収集の停止方法は、Google のポリシーをご確認ください。</p>
+<ul>
+  <li><a href="https://policies.google.com/technologies/partner-sites">Google のサービスを使用するサイトやアプリから収集した情報の Google による使用</a></li>
+</ul>
+
+<p>Android の「設定 → プライバシー → 広告」から、広告IDの削除や
+パーソナライズド広告の無効化を利用者ご自身で行えます。</p>
+
+<h2>5. 第三者への提供</h2>
+
+<p>当方は、収集した情報を第三者へ販売・貸与しません。
+法令に基づく開示請求があった場合を除き、外部へ提供することはありません。</p>
+
+<p>プレイヤー名と成績は、<strong>ランキングとして本アプリ内に公開されます。</strong>
+本名など、公開されたくない情報を名前に入力しないでください。</p>
+
+<h2>6. 保存期間と削除の求め</h2>
+
+<p>ランキングの記録は、サービスの提供に必要な期間、または当方がランキングを終了するまで保存します。</p>
+
+<p>ご自身の記録の削除を希望される場合は、下記の連絡先までご連絡ください。
+その際、ランキングに表示されている<strong>プレイヤー名と記録（撃破数）</strong>をお知らせください。
+本アプリはアカウントを持たないため、これらの情報でご本人の記録を特定します。</p>
+
+<h2>7. 子どもの利用について</h2>
+
+<p>本アプリは特定の年齢層を対象としたものではなく、13歳未満の児童から
+意図的に個人情報を収集することはありません。</p>
+
+<h2>8. 本ポリシーの変更</h2>
+
+<p>本ポリシーの内容は、必要に応じて変更することがあります。
+重要な変更を行う場合は、本ページに変更後の内容および制定日を掲載します。</p>
+
+<h2>9. お問い合わせ</h2>
+
+<p>本アプリおよび本ポリシーに関するお問い合わせ先：</p>
+<p>AID GAMES<br>
+メール：<a href="mailto:aid.2019.run@gmail.com">aid.2019.run@gmail.com</a></p>
+
+</body>
+</html>

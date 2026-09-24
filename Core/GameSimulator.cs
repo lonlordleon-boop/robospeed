@@ -1,0 +1,658 @@
+using System;
+using System.Text;
+
+namespace RoboSpeed.Core
+{
+    /// <summary>1000戦の集計。仕様書 9-2／9-3。</summary>
+    public class SimStats
+    {
+        public string NameA, NameB;
+        public int Matches;
+        public int WinsA, WinsB, Draws, Timeouts;
+        public long TotalDurationMs;
+        public int LaunchesA, LaunchesB;
+        public int Guards, GuardedHits;
+        public int Overwrites, Discards, Stripped;
+        public long RecycleTotal;
+        /// <summary>副色が立った出撃の回数と、その内訳。仕様書 9-5n。</summary>
+        public int SubColorHits;
+        public double SubHeal, SubShield, SubAbsorbed;
+        public readonly int[] HandAtLaunch = new int[7];
+        /// <summary>役ごとの、作業台が空になってから出撃するまでの合計時間。</summary>
+        public readonly long[] BuildMsByHand = new long[7];
+        /// <summary>先手（A側）だけの内訳。片側の戦術を測るときに使う。</summary>
+        public readonly int[] HandAtLaunchA = new int[7];
+        public readonly long[] BuildMsByHandA = new long[7];
+        public int LaunchesAOnly;
+
+        public double WinRateA { get { return Matches == 0 ? 0 : WinsA * 100.0 / Matches; } }
+        public double AvgDurationSec { get { return Matches == 0 ? 0 : TotalDurationMs / 1000.0 / Matches; } }
+        public double AvgLaunches { get { return Matches == 0 ? 0 : (LaunchesA + LaunchesB) / 2.0 / Matches; } }
+        public double AvgOverwrites { get { return Matches == 0 ? 0 : Overwrites / 2.0 / Matches; } }
+
+        public string Report()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("=== " + NameA + "  vs  " + NameB + "   (" + Matches + "戦) ===");
+            sb.AppendLine(string.Format("勝率        : {0} {1:F1}%   {2} {3:F1}%   引分 {4:F1}%",
+                NameA, WinsA * 100.0 / Matches, NameB, WinsB * 100.0 / Matches, Draws * 100.0 / Matches));
+            sb.AppendLine(string.Format("平均試合時間: {0:F1}秒   時間切れ {1:F1}%",
+                AvgDurationSec, Timeouts * 100.0 / Matches));
+            sb.AppendLine(string.Format("出撃回数    : {0} {1:F1}回 / {2} {3:F1}回（片側あたり）",
+                NameA, (double)LaunchesA / Matches, NameB, (double)LaunchesB / Matches));
+            sb.AppendLine(string.Format("上書き      : {0:F1}回   引き直し {1:F1}回   部位破壊 {2:F1}個（片側あたり）",
+                AvgOverwrites, Discards / 2.0 / Matches, Stripped / 2.0 / Matches));
+            sb.AppendLine(string.Format("ガード      : {0:F1}回（うち被弾 {1:F1}回）   山札循環 {2:F1}回",
+                Guards / 2.0 / Matches, GuardedHits / 2.0 / Matches, (double)RecycleTotal / Matches));
+            if (SubColorHits > 0)
+            {
+                int allLaunch = LaunchesA + LaunchesB;
+                sb.AppendLine(string.Format(
+                    "副色        : {0:F1}回（出撃の{1:F1}%）   回復 {2:F0} / シールド {3:F0} / 実際に吸収 {4:F0}（片側あたり）",
+                    SubColorHits / 2.0 / Matches,
+                    allLaunch == 0 ? 0 : SubColorHits * 100.0 / allLaunch,
+                    SubHeal / 2.0 / Matches, SubShield / 2.0 / Matches, SubAbsorbed / 2.0 / Matches));
+            }
+
+            int totalLaunch = 0;
+            for (int i = 0; i < 7; i++) { totalLaunch += HandAtLaunch[i]; }
+            sb.AppendLine("出撃時の役の分布:");
+            for (int i = 6; i >= 0; i--)
+            {
+                double pct = totalLaunch == 0 ? 0 : HandAtLaunch[i] * 100.0 / totalLaunch;
+                sb.AppendLine(string.Format("  {0,-12} {1,6:F2}%  {2}",
+                    HandEvaluator.NameOf((Hand)i), pct, Bar(pct)));
+            }
+            return sb.ToString();
+        }
+
+        private static string Bar(double pct)
+        {
+            int n = (int)Math.Round(pct / 2.0);
+            return new string('#', n < 0 ? 0 : n);
+        }
+    }
+
+    /// <summary>テトリス型の走りの集計。仕様書 9-6。</summary>
+    public class EndlessStats
+    {
+        /* 生存曲線を数える上限。**40 では 40機到達率が測れなかった**
+           （最後の枠に「40機以上」が全部たまるので、40 の到達率が出せない）。
+
+           **100機まで1機刻みで数えられるようにしておく。**
+           とんでもない反射神経の人や、まだ知らない攻略を見つける人が現れうる。
+           そういう走りが「最後の枠にまとめて入る」と、何が起きたのか分からない。
+           枠が 101 なのは、添字 0 を使うため（100機目を数えるには 101 要る）。
+
+           増えるのは int 101個ぶん（404バイト）。**ゲーム本体には影響しない。** */
+        public const int MaxTrack = 101;
+
+        public string Name;
+        public int Runs;
+        public long TotalKills;
+        public long TotalMs;
+        public int BestKills;
+        /// <summary>撃破数の分布。何機目で終わったかの山を見る。</summary>
+        public readonly int[] HandsAtKill = new int[MaxTrack];
+        /// <summary>相手の速さが下限に達した走りの数と、そのときの撃破数の合計。</summary>
+        public int FloorReached, KillsAtFloor;
+        /// <summary>下限到達後に走った時間の合計。**ここが長いほど「平地」が長い。**</summary>
+        public long MsAfterFloor;
+        /// <summary>制限時間まで落ちなかった走りの数。0でないと終わらない設計になっている。</summary>
+        public int NeverDied;
+        /// <summary>
+        /// 打ち手側の生データ。**較正に使う。**
+        /// 「組み立て何秒の打ち手か」を実機と突き合わせないと、
+        /// 走りの長さの数字はすべて意味を失う（9-2d／9-5i／9-7 と同じ轍）。
+        /// </summary>
+        public readonly SimStats Player = new SimStats();
+
+        /// <summary>打ち手の、作業台が空になってから出撃するまでの平均秒。引き直しも含む。</summary>
+        public double AvgBuildSec
+        {
+            get
+            {
+                long ms = 0; int n = 0;
+                for (int i = 0; i < 7; i++) { ms += Player.BuildMsByHandA[i]; n += Player.HandAtLaunchA[i]; }
+                return n == 0 ? 0 : ms / 1000.0 / n;
+            }
+        }
+
+        public double AvgKills { get { return Runs == 0 ? 0 : (double)TotalKills / Runs; } }
+        public double AvgSec { get { return Runs == 0 ? 0 : TotalMs / 1000.0 / Runs; } }
+        public double AvgKillsAtFloor { get { return FloorReached == 0 ? 0 : (double)KillsAtFloor / FloorReached; } }
+        /// <summary>下限に達した走りが、そのあと何秒走ったか。</summary>
+        public double AvgSecAfterFloor { get { return FloorReached == 0 ? 0 : MsAfterFloor / 1000.0 / FloorReached; } }
+        /// <summary>走りのうち「平地」が占める割合。高いほど、加速が仕事をしていない。</summary>
+        public double FlatPct { get { return TotalMs == 0 ? 0 : MsAfterFloor * 100.0 / TotalMs; } }
+
+        /* ---- 撃破数ごとの組み立て時間（★v1.12d・9-6o）----
+           AvgBuildSec は **走り1本を通した平均**で、序盤と終盤が混ざっている。
+           終盤は相手が速く、部位も壊されるので、同じ人でも組み立ては延びる。
+           「60機を超えてからの平均は？」に答えるには、区間で分けて持つしかない。 */
+        /// <summary>1つの枠が何機ぶんか。</summary>
+        public const int BucketSize = 10;
+        /// <summary>枠の数。最後の枠に「200機以上」がまとまる。</summary>
+        public const int Buckets = 21;
+        public readonly long[] BuildMsByBucket = new long[Buckets];
+        public readonly int[] LaunchesByBucket = new int[Buckets];
+
+        /// <summary>指定した撃破数から先だけの、組み立て平均（秒）。届いた走りが無ければ0。</summary>
+        public double AvgBuildSecFrom(int killsFrom)
+        {
+            long ms = 0; int n = 0;
+            for (int b = killsFrom / BucketSize; b < Buckets; b++)
+            {
+                ms += BuildMsByBucket[b]; n += LaunchesByBucket[b];
+            }
+            return n == 0 ? 0 : ms / 1000.0 / n;
+        }
+        /// <summary>その枠の組み立て平均（秒）。出撃が無ければ0。</summary>
+        public double AvgBuildSecAt(int bucket)
+        {
+            int n = LaunchesByBucket[bucket];
+            return n == 0 ? 0 : BuildMsByBucket[bucket] / 1000.0 / n;
+        }
+    }
+
+    /// <summary>
+    /// 自動対戦。仕様書 9章。
+    /// 離散時間（各プレイヤーの「次に動ける時刻」を進めるだけ）で回す。
+    /// Unity を起動せずに1000戦が数秒で終わる。
+    /// </summary>
+    public class GameSimulator
+    {
+        private class Side
+        {
+            public IBot Bot;
+            public Workbench Bench = new Workbench();
+            public double Hp;
+            public int FreeAtMs;
+            public int GuardUntilMs;
+            public int CompletedAtMs = -1;
+            public int EmptySinceMs;
+            public bool IsA;
+            public int Launches;
+            /// <summary>今の機体で使った上書きの回数。機体が全損すると0に戻る。</summary>
+            public int OverwritesUsed;
+            /// <summary>今の機体で引き直した枚数。機体が全損すると0に戻る。</summary>
+            public int DiscardsThisBuild;
+            /// <summary>自分の山札と自分の4枚。私有ライン（9-5c）。</summary>
+            public SupplyLine Line;
+            /// <summary>副色の緑・黄・紫で張るシールド。被弾時にHPより先に削れる。</summary>
+            public double Shield;
+            /// <summary>シールドが消える時刻。永久には残さない。</summary>
+            public int ShieldUntilMs;
+            /// <summary>
+            /// この側の「1手ごとの考える時間」。
+            /// テトリス型（9-6）では **相手だけが撃破ごとに詰まっていく** ので、
+            /// Balance の1つの値では表せない。側ごとに持つ。
+            /// </summary>
+            public int LagMs;
+        }
+
+        private readonly Balance _bal;
+
+        /* いま走っている「終わらない走り」の控え（★v1.12d・9-6o）。
+           DoLaunch は撃破数を知らないので、区間ごとの組み立て時間を溜められない。
+           試合型（Run）では null のままにして、余計な記録をしない。 */
+        private EndlessStats _es;
+        private int _killsNow;
+
+        public GameSimulator(Balance bal)
+        {
+            _bal = bal;
+        }
+
+        public SimStats Run(IBot a, IBot b, int matches, int seed)
+        {
+            SimStats st = new SimStats();
+            st.NameA = a.Name;
+            st.NameB = b.Name;
+            st.Matches = matches;
+
+            Random rng = new Random(seed);
+            for (int m = 0; m < matches; m++)
+            {
+                RunOne(a, b, st, new Random(rng.Next()));
+            }
+            return st;
+        }
+
+        private void RunOne(IBot botA, IBot botB, SimStats st, Random rng)
+        {
+            Side A = new Side(); A.Bot = botA; A.Hp = _bal.BaseHp; A.IsA = true;
+            Side B = new Side(); B.Bot = botB; B.Hp = _bal.BaseHp;
+            A.LagMs = _bal.BotLagMs;
+            B.LagMs = _bal.BotLagMs;
+
+            // 各自が自分の山札と自分の4枚を持つ（9-5c）。
+            // 共有に戻して比べたいときのために、両者が同じ実体を指す形も残す。
+            if (_bal.PrivateLines)
+            {
+                A.Line = new SupplyLine(rng, _bal.SupplyLineSize, _bal.DeckCopies);
+                B.Line = new SupplyLine(rng, _bal.SupplyLineSize, _bal.DeckCopies);
+            }
+            else
+            {
+                SupplyLine shared = new SupplyLine(rng, _bal.SupplyLineSize, _bal.DeckCopies);
+                A.Line = shared;
+                B.Line = shared;
+            }
+            A.Line.Infinite = _bal.InfiniteSupply;
+            B.Line.Infinite = _bal.InfiniteSupply;
+
+            int now = 0;
+
+            while (now < _bal.MatchLimitMs && A.Hp > 0 && B.Hp > 0)
+            {
+                // 先に動けるほうが行動する。同時なら交互に。
+                Side actor, other;
+                if (A.FreeAtMs <= B.FreeAtMs) { actor = A; other = B; }
+                else { actor = B; other = A; }
+
+                now = actor.FreeAtMs;
+                if (now >= _bal.MatchLimitMs) { break; }
+
+                // 使えない札は配らない。作業台は上書きでも変わるので、打つ直前に見る（9-5r）
+                actor.Line.Refresh(actor.Bench.IsDead);
+
+                // 5部位すべて埋まり、上書きも使い切ると、配れる札が1枚も無くなる。
+                // 打つ手がもう無いので **強制出撃**（9-5r）。
+                if (actor.Bench.IsComplete && !actor.Bench.AnyPlayable())
+                {
+                    Apply(BotAction.Of(ActionKind.Launch, 0), actor, other, ref now, st, rng);
+                    continue;
+                }
+
+                BotView v = new BotView();
+                v.Self = actor.Bench;
+                v.Opponent = other.Bench;
+                v.Line = actor.Line;
+                v.SelfHpRatio = actor.Hp / _bal.BaseHp;
+                v.OpponentHpRatio = other.Hp / _bal.BaseHp;
+                v.NowMs = now;
+                v.HeldMs = actor.CompletedAtMs >= 0 ? now - actor.CompletedAtMs : 0;
+                v.OverwritesUsed = actor.OverwritesUsed;
+                v.DiscardsThisBuild = actor.DiscardsThisBuild;
+                v.Bal = _bal;
+
+                BotAction act = actor.Bot.Decide(v);
+                int before = actor.FreeAtMs;
+                Apply(act, actor, other, ref now, st, rng);
+                // 1手ごとの「考える時間」。出撃だけは装填で別に払うので加えない。
+                if (act.Kind != ActionKind.Launch && actor.FreeAtMs > before)
+                {
+                    actor.FreeAtMs += actor.LagMs;
+                }
+            }
+
+            st.TotalDurationMs += Math.Min(now, _bal.MatchLimitMs);
+            st.LaunchesA += A.Launches;
+            st.LaunchesB += B.Launches;
+            st.RecycleTotal += A.Line.RecycleCount;
+
+            if (A.Hp <= 0 && B.Hp <= 0) { st.Draws++; }
+            else if (B.Hp <= 0) { st.WinsA++; }
+            else if (A.Hp <= 0) { st.WinsB++; }
+            else
+            {
+                st.Timeouts++;
+                if (A.Hp > B.Hp) { st.WinsA++; }
+                else if (B.Hp > A.Hp) { st.WinsB++; }
+                else { st.Draws++; }
+            }
+        }
+
+        /// <summary>
+        /// テトリス型の1本の走り（9-6）。撃破数と生存時間を返す。
+        ///
+        /// 1v1 の `Run` では **進行の設計を測れない**。
+        /// 相手が撃破ごとに速くなる／硬くなるという時間変化は、
+        /// 決着1回で終わる対戦の中には存在しないため。
+        /// </summary>
+        public EndlessStats RunEndless(IBot player, IBot enemy, int playerLagMs, int runs, int seed)
+        {
+            EndlessStats es = new EndlessStats();
+            es.Name = player.Name;
+            es.Runs = runs;
+
+            Random outer = new Random(seed);
+            for (int i = 0; i < runs; i++)
+            {
+                RunEndlessOne(player, enemy, playerLagMs, es, new Random(outer.Next()));
+            }
+            return es;
+        }
+
+        private void RunEndlessOne(IBot playerBot, IBot enemyBot, int playerLagMs,
+                                   EndlessStats es, Random rng)
+        {
+            SimStats sink = es.Player;   // 打ち手の組み立て時間はここに溜まる（較正用）
+            _es = es; _killsNow = 0;     // 区間ごとの記録先（9-6o）
+
+            Side me = new Side(); me.Bot = playerBot; me.Hp = _bal.BaseHp; me.IsA = true;
+            Side cpu = new Side(); cpu.Bot = enemyBot;
+
+            me.Line = new SupplyLine(rng, _bal.SupplyLineSize, _bal.DeckCopies);
+            cpu.Line = new SupplyLine(rng, _bal.SupplyLineSize, _bal.DeckCopies);
+
+            int kills = 0;
+            me.LagMs = playerLagMs;
+            cpu.LagMs = _bal.LagForKills(0);
+            cpu.Hp = _bal.EnemyHpAt(0);
+
+            // 下限に到達した時刻。到達後にどれだけ「平地」を走ったかを測る。
+            int floorReachedAt = -1;
+            int now = 0;
+
+            while (now < _bal.EndlessLimitMs && me.Hp > 0)
+            {
+                Side actor, other;
+                if (me.FreeAtMs <= cpu.FreeAtMs) { actor = me; other = cpu; }
+                else { actor = cpu; other = me; }
+
+                now = actor.FreeAtMs;
+                if (now >= _bal.EndlessLimitMs) { break; }
+
+                // 使えない札は配らない／打つ手が無ければ強制出撃（9-5r）
+                actor.Line.Refresh(actor.Bench.IsDead);
+                if (actor.Bench.IsComplete && !actor.Bench.AnyPlayable())
+                {
+                    Apply(BotAction.Of(ActionKind.Launch, 0), actor, other, ref now, sink, rng);
+                    continue;
+                }
+
+                BotView v = new BotView();
+                v.Self = actor.Bench;
+                v.Opponent = other.Bench;
+                v.Line = actor.Line;
+                v.SelfHpRatio = actor.Hp / (actor.IsA ? _bal.BaseHp : _bal.EnemyHpAt(kills));
+                v.OpponentHpRatio = other.Hp / (other.IsA ? _bal.BaseHp : _bal.EnemyHpAt(kills));
+                v.NowMs = now;
+                v.HeldMs = actor.CompletedAtMs >= 0 ? now - actor.CompletedAtMs : 0;
+                v.OverwritesUsed = actor.OverwritesUsed;
+                v.DiscardsThisBuild = actor.DiscardsThisBuild;
+                v.Bal = _bal;
+
+                BotAction act = actor.Bot.Decide(v);
+                int before = actor.FreeAtMs;
+                Apply(act, actor, other, ref now, sink, rng);
+                if (act.Kind != ActionKind.Launch && actor.FreeAtMs > before)
+                {
+                    actor.FreeAtMs += actor.LagMs;
+                }
+
+                /* 相手を倒したら次の機体が出てくる。走りは続く。
+                   **while にしてある。** 持ち越しが効くと、1発で2機まとめて
+                   落ちることがある（ピュアカラーは敵の耐久の2倍を超える）。
+                   if だと、次の機体が耐久0のまま次の行動を待ってしまう。 */
+                while (cpu.Hp <= 0)
+                {
+                    kills++;
+                    _killsNow = kills;      // 区間の記録用（9-6o）
+                    es.HandsAtKill[Math.Min(kills, EndlessStats.MaxTrack - 1)]++;
+
+                    me.Hp = Math.Min(_bal.BaseHp, me.Hp + _bal.BaseHp * _bal.HealAt(kills));
+
+                    /* 倒しきって余った分を、次の機体に持ち越すかどうか。
+                       **持ち越さないと、上限を超えたダメージは捨てられる。**
+                       敵の耐久が低いほど捨てる量が増え、上位の役を狙う価値が消える。
+                       （測定：どの倍率でも「2ペアで撃つ」が最良だった・9-6h） */
+                    double over = _bal.CarryOverKill ? -cpu.Hp : 0.0;
+                    cpu.Hp = _bal.EnemyHpAt(kills) - over;
+                    cpu.Bench.Clear(cpu.Line);
+                    cpu.CompletedAtMs = -1;
+                    cpu.EmptySinceMs = now;
+                    cpu.OverwritesUsed = 0;
+                    cpu.DiscardsThisBuild = 0;
+                    cpu.Shield = 0.0;
+                    cpu.LagMs = _bal.LagForKills(kills);
+                    cpu.FreeAtMs = now + 1300;      // 次の機体が出てくるまでの間
+
+                    if (floorReachedAt < 0 && cpu.LagMs <= _bal.FloorLagMs)
+                    {
+                        floorReachedAt = now;
+                        es.FloorReached++;
+                        es.KillsAtFloor += kills;
+                    }
+                }
+            }
+
+            es.TotalKills += kills;
+            es.TotalMs += Math.Min(now, _bal.EndlessLimitMs);
+            if (kills > es.BestKills) { es.BestKills = kills; }
+            if (floorReachedAt >= 0) { es.MsAfterFloor += Math.Min(now, _bal.EndlessLimitMs) - floorReachedAt; }
+            if (now >= _bal.EndlessLimitMs) { es.NeverDied++; }
+            // 試合型（Run）に記録が漏れないよう、走りを抜けたら外す（9-6o）
+            _es = null;
+        }
+
+        private void Apply(BotAction act, Side actor, Side other,
+                           ref int now, SimStats st, Random rng)
+        {
+            SupplyLine line = actor.Line;
+            switch (act.Kind)
+            {
+                case ActionKind.TakeToSelf:
+                {
+                    MechaCard c = line.Take(act.LineIndex, actor.Bench.IsDead);
+                    if (!actor.Bench.Install(c)) { line.Discard(c); }
+                    if (actor.Bench.IsComplete && actor.CompletedAtMs < 0)
+                    {
+                        actor.CompletedAtMs = now + _bal.FlickMs;
+                    }
+                    actor.FreeAtMs = now + _bal.FlickMs;
+                    break;
+                }
+
+                case ActionKind.Overwrite:
+                {
+                    // 上限に達していたら、この手は打てない。手間だけかかって空振りする。
+                    if (_bal.MaxOverwritesPerBuild > 0
+                        && actor.OverwritesUsed >= _bal.MaxOverwritesPerBuild)
+                    {
+                        actor.FreeAtMs = now + _bal.FlickMs;
+                        break;
+                    }
+                    actor.OverwritesUsed++;
+                    MechaCard c = line.Take(act.LineIndex, actor.Bench.IsDead);
+                    MechaCard removed;
+                    if (actor.Bench.Overwrite(c, out removed)) { line.Discard(removed); }
+                    else { line.Discard(c); }
+                    st.Overwrites++;
+                    actor.FreeAtMs = now + _bal.OverwriteLockMs;
+                    break;
+                }
+
+                case ActionKind.Purge:
+                    // 手札4枚をまとめて捨てて引き直す。単独の引き直しは廃止（v1.10・9-5r）。
+                    line.Purge(actor.Bench.IsDead);
+                    st.Discards++;
+                    actor.DiscardsThisBuild++;
+                    actor.FreeAtMs = now + _bal.PurgeMs;
+                    break;
+
+                case ActionKind.Guard:
+                {
+                    // 完成必須なら、組みかけの機体では受けられない
+                    if (_bal.GuardRequiresComplete && !actor.Bench.IsComplete)
+                    {
+                        actor.FreeAtMs = now + _bal.FlickMs;
+                        break;
+                    }
+                    int hold = act.HoldMs <= 0 ? 800 : act.HoldMs;
+                    actor.GuardUntilMs = now + hold;
+                    st.Guards++;
+                    // ガード中は組み立てられない。解除後に硬直。
+                    actor.FreeAtMs = now + hold + _bal.GuardReleaseLagMs;
+                    break;
+                }
+
+                case ActionKind.Launch:
+                    DoLaunch(actor, other, now, st, rng);
+                    break;
+
+                default:
+                    actor.FreeAtMs = now + 200;
+                    break;
+            }
+        }
+
+        private void DoLaunch(Side actor, Side other, int now,
+                              SimStats st, Random rng)
+        {
+            if (!actor.Bench.IsComplete)
+            {
+                actor.FreeAtMs = now + _bal.FlickMs;
+                return;
+            }
+
+            Hand hand = actor.Bench.EvaluateHand();
+            int buildMs = now - actor.EmptySinceMs;
+            st.HandAtLaunch[(int)hand]++;
+            st.BuildMsByHand[(int)hand] += buildMs;
+            if (actor.IsA)
+            {
+                st.HandAtLaunchA[(int)hand]++;
+                st.BuildMsByHandA[(int)hand] += buildMs;
+                st.LaunchesAOnly++;
+                /* 撃破数ごとの区間にも溜める（9-6o）。**終わらない走りのときだけ。**
+                   試合型（Run）には撃破数という軸が無いので _es は null のまま。 */
+                if (_es != null)
+                {
+                    int b = _killsNow / EndlessStats.BucketSize;
+                    if (b >= EndlessStats.Buckets) { b = EndlessStats.Buckets - 1; }
+                    _es.BuildMsByBucket[b] += buildMs;
+                    _es.LaunchesByBucket[b]++;
+                }
+            }
+            actor.Launches++;
+
+            bool defenderGuarding = other.GuardUntilMs > now;
+
+            // 技は **機体の組み合わせで決まる**。選ばせない（6-2c）。
+            SpecialMove pick = SpecialMoves.MoveOf(actor.Bench);
+
+            bool defComplete = other.Bench.IsComplete;
+            Hand defHand = defComplete ? other.Bench.EvaluateHand() : Hand.OnePair;
+
+            AttackResult r = CombatResolver.Resolve(
+                _bal, hand, pick, actor.Hp / _bal.BaseHp,
+                defenderGuarding, defComplete, defHand);
+
+            // ---- 副色（9-5n）----
+            // 主色が技を決め、**副色が一撃の使い道を決める**。
+            // 役倍率は掛けない。掛けると勝っている側だけがさらに伸びる。
+            double dmg = r.Damage;
+            int sub = _bal.SubColorScale > 0.0 ? SpecialMoves.SubMakerOf(actor.Bench) : -1;
+            if (sub >= 0)
+            {
+                double value = SpecialMoves.Of((Manufacturer)sub).BaseDamage * _bal.SubColorScale;
+                dmg += value * _bal.SubColorMix[sub, 0];
+
+                double heal = value * _bal.SubColorMix[sub, 1];
+                if (heal > 0.0)
+                {
+                    actor.Hp = Math.Min(_bal.BaseHp, actor.Hp + heal);
+                    st.SubHeal += heal;
+                }
+
+                double shield = value * _bal.SubColorMix[sub, 2];
+                if (shield > 0.0)
+                {
+                    // 張り替えではなく積む。ただし持続は最後に張った時点から測り直す。
+                    if (actor.ShieldUntilMs <= now) { actor.Shield = 0.0; }
+                    actor.Shield += shield;
+                    actor.ShieldUntilMs = now + _bal.ShieldLifeMs;
+                    st.SubShield += shield;
+                }
+                st.SubColorHits++;
+            }
+
+            // シールドはHPより先に削れる
+            if (other.ShieldUntilMs > now && other.Shield > 0.0)
+            {
+                double absorbed = Math.Min(other.Shield, dmg);
+                other.Shield -= absorbed;
+                dmg -= absorbed;
+                st.SubAbsorbed += absorbed;
+            }
+            else
+            {
+                other.Shield = 0.0;
+            }
+
+            other.Hp -= dmg;
+
+            if (defenderGuarding)
+            {
+                st.GuardedHits++;
+                // 受け止めた機体は全損する。仕様書 6-3。
+                other.Bench.Clear(other.Line);
+                other.CompletedAtMs = -1;
+                other.GuardUntilMs = 0;
+                other.EmptySinceMs = now;
+                other.OverwritesUsed = 0;
+                other.DiscardsThisBuild = 0;
+            }
+            else
+            {
+                // 当たった攻撃は必ず部位を壊す。妨害を廃止した代わりの唯一の干渉（9-5f）。
+                // 拡散弾のように元から壊す技は2倍。
+                int strip = pick.StripsPart ? _bal.StripOnHit * 2 : _bal.StripOnHit;
+                if (rng.NextDouble() >= _bal.StripChance) { strip = 0; }
+                for (int k = 0; k < strip; k++) { StripOnePart(other.Bench, other.Line, rng); }
+                st.Stripped += strip;
+                if (!other.Bench.IsComplete) { other.CompletedAtMs = -1; }
+            }
+
+            // 出撃した機体も全損
+            actor.Bench.Clear(actor.Line);
+            actor.CompletedAtMs = -1;
+            actor.EmptySinceMs = now;
+            actor.OverwritesUsed = 0;
+            actor.DiscardsThisBuild = 0;
+
+            // 演出だけが両者停止。技選択は廃止した（6-2c）。装填は出撃側だけ。
+            int freeze = r.EffectMs;
+            int resume = now + freeze;
+            if (other.FreeAtMs < resume) { other.FreeAtMs = resume; }
+            actor.FreeAtMs = resume + r.ReloadMs;
+        }
+
+        private static void StripOnePart(Workbench bench, SupplyLine line, Random rng)
+        {
+            int filled = bench.FilledCount;
+            if (filled == 0) { return; }
+            int target = rng.Next(filled);
+            int seen = 0;
+            for (int i = 0; i < Counts.Slots; i++)
+            {
+                PartSlot s = (PartSlot)i;
+                if (!bench.IsFilled(s)) { continue; }
+                if (seen == target)
+                {
+                    // 該当スロットだけを外すために、いったん全部を読み出して組み直す
+                    Manufacturer[] keep = new Manufacturer[Counts.Slots];
+                    bool[] has = new bool[Counts.Slots];
+                    for (int k = 0; k < Counts.Slots; k++)
+                    {
+                        PartSlot ks = (PartSlot)k;
+                        has[k] = bench.IsFilled(ks);
+                        if (has[k]) { keep[k] = bench.MakerAt(ks); }
+                    }
+                    bench.Clear(null);
+                    for (int k = 0; k < Counts.Slots; k++)
+                    {
+                        if (!has[k]) { continue; }
+                        if (k == i) { line.Discard(new MechaCard(keep[k], (PartSlot)k)); continue; }
+                        bench.Install(new MechaCard(keep[k], (PartSlot)k));
+                    }
+                    return;
+                }
+                seen++;
+            }
+        }
+    }
+}

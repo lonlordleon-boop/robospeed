@@ -1,0 +1,178 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>カード枠の見本（C・HUD）</title>
+<!--
+  C（HUD枠）。**枠は生成した絵のまま。CSSで描き直したりしない。**
+
+  ずれていた原因は、絵の中のパネルの位置を **目分量で %** に書いていたこと。
+  カードは端末ごとに幅も高さも変わるので、ずれ幅も端末ごとに変わって追えなかった。
+
+  直しかた：**絵を機械で測る。**
+  scratchpad/measure.ps1 が、台紙の「一様な明るさの矩形＝空パネル」を拾って
+  上端・高さ・左端・幅を % で吐く。下の --bar / --win / --pl はその実測値そのもの。
+
+    plate_hud.png (360x645)
+      [0] 帯   top= 4.65%  h= 7.44%   left=6.94%  w=86.11%
+      [1] 窓   top=15.97%  h=46.98%   left=6.94%  w=86.11%
+      [2] 板   top=66.36%  h=28.99%   left=6.94%  w=86.11%
+
+  台紙を差し替えたら measure.ps1 を回し直して、この3行を貼り替えるだけでよい。
+  そのうえに置くのは **絵だけ**（動作アイコンと社章）。文字は1つも置かない。
+-->
+<style>
+:root{
+  --m0:#d93a2b; --m1:#1f6feb; --m2:#e5a100; --m3:#12916a; --m4:#7d4fd1;
+  --ground:#e7eaec; --ink:#12171a; --muted:#5c676d; --accent:#00756c; --accent-ink:#fff;
+  --surface:#fff; --line:#c9d1d5; --ink-2:#3c464c;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ground:#14181b; --ink:#e8ecee; --muted:#8e9aa1; --accent:#2ec4b6; --accent-ink:#0d1114;
+  --surface:#1d2226; --line:#39424a; --ink-2:#c2cbd0;
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;height:100%;background:var(--ground);color:var(--ink);
+  font:14px/1.6 system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+  user-select:none;}
+.wrap{padding:10px max(10px,env(safe-area-inset-left)) max(14px,env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;height:100%;gap:8px;}
+h1{font-size:12px;letter-spacing:.08em;color:var(--muted);margin:0;font-weight:800;}
+.pick{display:flex;gap:6px;}
+.pick button{flex:1 1 0;padding:8px 0;border-radius:8px;border:2px solid var(--line);
+  background:var(--surface);color:var(--ink);font-weight:800;font-size:11px;}
+.pick button.on{border-color:var(--ink);}
+.spacer{flex:1 1 auto;}
+.hintline{font-size:11px;color:var(--muted);margin:0;}
+
+/* ---- 共有ライン。playtest.html の #bottom / #line と同じ配分 ---- */
+#line{display:flex;gap:8px;align-items:stretch;flex:0 0 clamp(150px,34vh,230px);}
+
+/* =========================================================================
+   カード。**台紙の絵が主。** 位置は下の実測値だけで決まる。
+
+   台紙は **plate_hud.png（採用した枠）のまま。** 作り直さない。
+   指示は「下の社章と上のお知らせを入れ替える」だけだったのに、
+   板を細くしようとして台紙を2回作り直してしまった。**枠は変えない。**
+
+   数字は scratchpad/shape.ps1 が塗りつぶしで測った出力そのまま。
+   ========================================================================= */
+.card{
+  --padL: 6.94%;  --padW: 86.11%;
+  --emY:  4.50%;  --emH:   7.75%;   /* 上：社章（もとお知らせの帯） */
+  --winY:15.81%;  --winH: 47.29%;   /* 中：絵の窓 */
+  --barY:66.36%;  --barH: 29.15%;   /* 下：お知らせ（もと社章の板） */
+
+  position:relative;flex:1 1 0;min-width:0;overflow:hidden;border-radius:6px;
+  background-image:url(mecha/card/plate_hud.png?v=7);
+  background-size:100% 100%;background-repeat:no-repeat;
+  background-color:var(--tint);background-blend-mode:multiply;
+}
+/* 上：社章 */
+.card .plate{
+  position:absolute;left:var(--padL);width:var(--padW);top:var(--emY);height:var(--emH);
+  display:flex;align-items:center;justify-content:center;
+}
+.card .plate img{height:86%;width:auto;object-fit:contain;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));}
+
+/* 中：絵の窓 */
+.card .win{
+  position:absolute;left:var(--padL);width:var(--padW);top:var(--winY);height:var(--winH);
+  display:flex;align-items:center;justify-content:center;
+}
+.card .win img{width:92%;height:92%;object-fit:contain;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.55));}
+
+/* 下：お知らせ。**板は敷かない。記号だけを置く。**
+
+   はじめは CSS で色を塗った箱、次は絵として起こした帯を敷いたが、どちらも
+   「ポストイットを貼ったみたい」「文字を敷いてる板を外せ」と却下された。
+   **台紙にはもともとパネルが描いてある。** その上にさらに板を重ねる理由が無い。
+   置くのは白い記号だけ。下に半透明の黒を敷いてあるので、どの社の色でも読める。 */
+.card .bar{
+  position:absolute;left:var(--padL);width:var(--padW);
+  top:var(--barY);height:var(--barH);
+  display:flex;align-items:center;justify-content:center;
+}
+.card .bar img{height:62%;width:auto;object-fit:contain;display:block;}
+/* いまの本番（比較用）。playtest.html の値をそのまま写す */
+.card.now{background-image:none;background-color:var(--surface);
+  border:2px solid var(--line);border-radius:12px;}
+.card.now .bar{left:0;width:100%;top:0;height:16px;}
+.card.now .win{left:0;width:100%;top:0;height:100%;background:var(--tint0);}
+.card.now .win::before{content:"";position:absolute;inset:0;background:var(--surface);opacity:.66;}
+.card.now .win img{position:relative;width:88%;height:88%;filter:none;}
+.card.now .plate{left:0;width:100%;top:auto;bottom:0;height:16px;
+  background:color-mix(in srgb, var(--surface) 82%, transparent);}
+.card.now .plate img{height:82%;}
+.card.now .plate .em{filter:brightness(0) opacity(.7);}
+</style>
+
+<div class="wrap">
+  <h1>C・HUD枠　実測して合わせた版</h1>
+  <div class="pick" id="pick">
+    <button data-k="frame" class="on">C 枠</button>
+    <button data-k="now">いまの本番</button>
+    <button data-k="slot">部位を送る</button>
+    <button data-k="state">状態を送る</button>
+  </div>
+  <p class="hintline">帯・窓・板はすべて台紙の絵の中の位置。上に置くのは絵だけで、文字は無い<br><b id="stamp"></b></p>
+  <div class="spacer"></div>
+  <div id="line"></div>
+</div>
+
+<script>
+const IMG = ["mecha/m_head.png","mecha/m_torso.png","mecha/m_waist.png","mecha/m_arm.png","mecha/m_leg.png"];
+const EM  = ["red","blue","yellow","green","purple"];
+
+/* 帯の絵。**記号も帯の一部として描いてある**ので、上に何も載せない。
+   go  … 差し込む（緑・点灯）
+   alt … 捨てて引き直す（鋼・消灯）
+   no  … もう埋まっている（暗い・斜線・錠前） */
+/* **URL に版を付ける。** 差し替えても端末に古い絵が残っていて「変わらない」と
+   報告された。原因はテストサーバーが画像に max-age=3600 を付けていたこと。
+   サーバー側は no-store に直したが、**すでに掴まれた分は取り直させないと消えない。** */
+const V = "?v=9";
+function barSrc(state) { return "mecha/card/sym_" + state + ".png" + V; }
+const STATES = ["go", "alt", "no"];
+
+let SET = [[0,4,0],[1,0,0],[2,3,1],[3,1,2]];
+let useNow = false;
+
+function paint() {
+  const line = document.getElementById("line");
+  line.innerHTML = "";
+  for (const [m, s, st] of SET) {
+    const state = STATES[st];
+    const d = document.createElement("div");
+    d.className = "card" + (useNow ? " now" : "");
+    // 乗算なので、そのままのメーカー色だと沈む。白を混ぜて明るくしてから掛ける。
+    d.style.setProperty("--tint",  "color-mix(in srgb, var(--m" + m + ") 42%, #fff)");
+    d.style.setProperty("--tint0", "var(--m" + m + ")");
+    d.innerHTML =
+        '<div class="win"><img src="' + IMG[s] + '" alt=""></div>'
+      + '<div class="bar"><img src="' + barSrc(state) + '" alt=""></div>'
+      + '<div class="plate">'
+      +   '<img class="em" src="mecha/card/em_' + EM[m] + '.png' + V + '" alt="">'
+      + '</div>';
+    line.appendChild(d);
+  }
+}
+
+document.getElementById("pick").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) { return; }
+  const k = b.dataset.k;
+  if (k === "frame") { useNow = false; }
+  if (k === "now")   { useNow = true; }
+  if (k === "slot")  { SET = SET.map(([m, s, st]) => [m, (s + 1) % 5, st]); }
+  if (k === "state") { SET = SET.map(([m, s, st]) => [m, s, (st + 1) % 3]); }
+  for (const x of document.querySelectorAll("#pick button")) {
+    if (x.dataset.k === "frame") { x.classList.toggle("on", !useNow); }
+    if (x.dataset.k === "now")   { x.classList.toggle("on", useNow); }
+  }
+  paint();
+});
+document.getElementById("stamp").textContent =
+  "v9　青の社章を機体の絵から抜き直した　" + new Date().toLocaleTimeString("ja-JP");
+paint();
+</script>

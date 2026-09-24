@@ -1,0 +1,14 @@
+D:\unity-box\sim\bin\Debug\net8.0\RoboSpeed.Sim.exe
+D:\unity-box\sim\bin\Debug\net8.0\RoboSpeed.Sim.deps.json
+D:\unity-box\sim\bin\Debug\net8.0\RoboSpeed.Sim.runtimeconfig.json
+D:\unity-box\sim\bin\Debug\net8.0\RoboSpeed.Sim.dll
+D:\unity-box\sim\bin\Debug\net8.0\RoboSpeed.Sim.pdb
+D:\unity-box\sim\obj\Debug\net8.0\RoboSpeed.Sim.GeneratedMSBuildEditorConfig.editorconfig
+D:\unity-box\sim\obj\Debug\net8.0\RoboSpeed.Sim.AssemblyInfoInputs.cache
+D:\unity-box\sim\obj\Debug\net8.0\RoboSpeed.Sim.AssemblyInfo.cs
+D:\unity-box\sim\obj\Debug\net8.0\RoboSpeed.Sim.csproj.CoreCompileInputs.cache
+D:\unity-box\sim\obj\Debug\net8.0\RoboSpeed.Sim.dll
+D:\unity-box\sim\obj\Debug\net8.0\refint\RoboSpeed.Sim.dll
+D:\unity-box\sim\obj\Debug\net8.0\RoboSpeed.Sim.pdb
+D:\unity-box\sim\obj\Debug\net8.0\RoboSpeed.Sim.genruntimeconfig.cache
+D:\unity-box\sim\obj\Debug\net8.0\ref\RoboSpeed.Sim.dll

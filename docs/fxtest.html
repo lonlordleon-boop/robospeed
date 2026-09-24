@@ -1,0 +1,471 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>煽り演出の見比べ — ロボ・スピード</title>
+
+<!--
+  ステージ交代の煽りに出す絵の見比べ。**ゲーム本体とは無関係。**
+  audiotest.html（音の聞き比べ）と同じ立ち位置のページ。
+
+  ■ 方向（実機の指示・POP調）
+    コミック／販促POP調の**吹き出しステッカー1枚**。
+    この様式では **吹き出しの形と文字が一体**なので、
+    「背景の絵＋文字の絵」の2枚重ねにはしない。1枚で完結させる。
+
+    ・higgsfield（Nano Banana Pro・16:9・2k）で白地に描かせる
+    ・**縁から繋がっている白だけ**を透明に抜く（囲まれた白＝文字の白は残す）
+    ・幅1000pxに縮めて、中身の外枠で切り出す（220〜400KB）
+    ・動きは CSS が付ける。判子を押すように、行き過ぎて戻る
+
+    参考として見せてもらった市販の素材は**一切読み込ませていない。**
+    様式を言葉で伝えて、一から描かせたもの。
+
+  ■ 背景は無し／覆いは白
+    発光する電撃・爆風・スキャンラインを後ろに敷く案は **取りやめた**（実機の指示）。
+    出すのはステッカー1枚と、その後ろの覆いだけ。
+    覆いは **黒から白へ変えた。** POP調は白い紙に刷ったものなので、
+    後ろが黒いと浮く。**ただし板を白くしたら、文字の色も総入れ替えになる**
+    （9-6i は「演出は必ず暗い板の上」を前提に明るい色で固定していた）。
+    #center.onwhite がその入れ替え。
+
+  ■ 出す場面（実機の指示で入れ替えた）
+    1位になった  … おめでとう！撃墜王！（金文字・紺の爆発）
+    2位になった  … おめでとう！２位！  （銀文字・赤い曲線の矢印）
+    3位になった  … おめでとう！３位！  （銅文字・赤い曲線の矢印）
+    自己ベスト更新 … 絵は前のまま（緑の爆発）
+    「あと◯機」は廃止。追いかけている間は何も出さない。
+
+  ■ 旧・実機で選んだ組み合わせ（差し替え前）
+    撃墜王 = A（紺の爆発・黄文字）
+    あと1機 = B（小ぶり・白文字）
+    自己ベスト更新 = A（緑の爆発・黄文字）
+
+  ■ 絵にできない行
+    「あと 5 機」の数字は走るたびに変わる。「第N機」「加速 ○秒」も同じ。
+    **数字ぶんの絵は用意できない**ので、そこは文字のまま。
+    POP調の絵を出すのは 撃墜王 / あと1機 / 自己ベスト更新 の3つだけ。
+-->
+
+<style>
+:root {
+  --ground:#e7eaec; --surface:#fff; --surface-2:#f3f5f6;
+  --ink:#12171a; --muted:#5c676d; --line:#c9d1d5; --line-soft:#dde3e6;
+  --accent:#00756c; --good:#1f7a4d; --bad:#b3352b; --warn:#a86b00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:#14181b; --surface:#1d2226; --surface-2:#252b30;
+    --ink:#e8ecee; --muted:#8e9aa1; --line:#39424a; --line-soft:#2c343a;
+    --accent:#2ec4b6; --good:#4ec98a; --bad:#ff6b5e; --warn:#e0a63a;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:#14181b; --surface:#1d2226; --surface-2:#252b30;
+  --ink:#e8ecee; --muted:#8e9aa1; --line:#39424a; --line-soft:#2c343a;
+  --accent:#2ec4b6; --good:#4ec98a; --bad:#ff6b5e; --warn:#e0a63a;
+}
+/* 演出の文字の色。**明暗テーマで変えない**（playtest.html の写し） */
+:root {
+  --fx-ink:#eef2f4; --fx-sub:#b6c0c6; --fx-hi:#2ec4b6;
+  --fx-warn:#e8b141; --fx-good:#5fd79a; --fx-bad:#ff7b6e;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin:0; height:100%; overflow:hidden;
+  background:var(--ground); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:15px;
+}
+
+/* ---- にせの盤面。全画面 ---- */
+#board { position:fixed; inset:0; z-index:1; background:var(--ground); }
+.hud { position:absolute; left:0; right:0; top:0; padding:8px 10px 4px; }
+.hudrow { display:flex; align-items:baseline; gap:8px; font-size:11px; color:var(--muted); }
+.hudrow .n { font-size:22px; font-weight:900; font-variant-numeric:tabular-nums; }
+.hudrow .n.me { color:var(--good); } .hudrow .n.cpu { color:var(--bad); }
+.hudrow .sp { flex:1; }
+.bar { height:6px; border-radius:3px; background:var(--line-soft); margin-top:3px; overflow:hidden; }
+.bar i { display:block; height:100%; }
+.bar.me i { width:92%; background:var(--good); }
+.bar.cpu i { width:100%; background:var(--bad); }
+.hudmid { text-align:center; margin-top:5px; }
+.hudmid .stage { font-size:16px; font-weight:800; }
+.hudmid .goal { font-size:12px; color:var(--muted); }
+.hudmid .goal b { color:var(--ink); }
+.mid { position:absolute; left:10px; right:10px; top:104px; bottom:150px; display:flex; gap:10px; }
+.bench { flex:1; border:1px solid var(--line); border-radius:12px; background:#0e1114; position:relative; }
+.bench i { position:absolute; border:1px solid rgba(255,255,255,.10); border-radius:5px; }
+.bench .p0 { left:38%; width:24%; top:5%;  height:11%; }
+.bench .p1 { left:30%; width:40%; top:19%; height:22%; }
+.bench .p2 { left:8%;  width:20%; top:19%; height:30%; }
+.bench .p3 { left:72%; width:20%; top:19%; height:30%; }
+.bench .p4 { left:30%; width:40%; top:44%; height:34%; }
+.hand { position:absolute; left:10px; right:10px; bottom:14px; height:118px; display:flex; gap:7px; }
+.hand i { flex:1; border-radius:10px; border:1px solid var(--line); }
+.hand i:nth-child(1){ background:#1f6feb33; } .hand i:nth-child(2){ background:#e5a10033; }
+.hand i:nth-child(3){ background:#7d4fd133; } .hand i:nth-child(4){ background:#12916a33; }
+
+/* ---- 覆い ----
+   **白い覆いにする。**（実機の指示）
+   もとは黒（#05070a）を敷いていたが、POP調のステッカーは
+   **白い紙に刷ったもの**なので、後ろが黒いと浮いて見える。
+   白く飛ばすと、盤面が引っ込んで絵だけが立つ。
+
+   ただし白くすると **文字の色が総入れ替えになる。**
+   演出の文字は「暗い板の上」を前提に明るい色で固定してあった（9-6i）。
+   白い板の上では、そのまま出すと消える。下の #center.onwhite を見よ。 */
+#burstveil {
+  position:fixed; inset:0; z-index:42; pointer-events:none;
+  background:#f4f6f7; opacity:0; transition: opacity .18s ease-out;
+}
+#burstveil.go { opacity: var(--veil, .82); }
+
+/* ★POP調のステッカー★
+   透明PNGなので、**合成モードは要らない。**そのまま上に置く。
+   （前の発光案は黒地を screen で抜いていたが、この様式は黒い輪郭が主役なので
+     screen だと輪郭が消える。透明で持つのが正しい。） */
+#fxpop {
+  position:fixed; left:50%; top:50%; z-index:44;
+  /* **縦にも上限を掛ける。** 幅だけで決めると、縦長の端末では
+     ステッカーが画面の半分以上を占めて、告知の行を押し潰す。 */
+  width:auto; height:auto;
+  max-width:min(92vw, 620px); max-height:44vh;
+  transform:translate(-50%,-50%) scale(.35);
+  pointer-events:none; opacity:0;
+  /* 白い板の上なので、影は薄く。黒地のときの濃さだと汚れて見える。 */
+  filter: drop-shadow(0 5px 12px rgba(0,0,0,.22));
+}
+/* 判子を押すように、**行き過ぎて戻る。** コミック調は勢いが要る。 */
+@keyframes popShow {
+  0%   { opacity:0; transform:translate(-50%,-50%) scale(.35) rotate(-9deg); }
+  18%  { opacity:1; transform:translate(-50%,-50%) scale(1.14) rotate(3deg); }
+  26%  { opacity:1; transform:translate(-50%,-50%) scale(.96) rotate(-1.5deg); }
+  34%  { opacity:1; transform:translate(-50%,-50%) scale(1.03) rotate(.5deg); }
+  42%  { opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0deg); }
+  85%  { opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0deg); }
+  100% { opacity:0; transform:translate(-50%,-50%) scale(1.12) rotate(0deg); }
+}
+#fxpop.slow { animation: popShow 1.32s cubic-bezier(.2,.9,.3,1) forwards; }
+#fxpop.fast { animation: popShow  .62s cubic-bezier(.2,.9,.3,1) forwards; }
+
+#center {
+  position:fixed; left:50%; top:44%; transform:translate(-50%,-50%);
+  pointer-events:none; text-align:center; z-index:45; width:min(88vw, 560px);
+}
+#center.stage { top:50%; }
+/* 絵を出すときは、告知の行を **下へ** 逃がす。
+   上へ逃がすと HUD とぶつかるし、ステッカーの角にも掛かる。
+   主役はステッカーなので、告知は足元に小さく置く。 */
+#center.withimg { top:76%; }
+/* **白い覆いの上に出すときの色。**
+   9-6i で「演出は必ず暗い板の上に出る」という前提で明るい色に固定したが、
+   板を白くしたのだから、その前提ごと引っくり返す。
+   **板の色が変われば、文字の色も変わる。** どちらか片方だけ変えてはいけない。 */
+#center.onwhite #burst    { color:#c2410c !important; }
+#center.onwhite #burstsub { color:#3c464c; }
+#center.onwhite #burstrank b    { color:#12171a; }
+#center.onwhite #burstrank span { color:#5c676d; }
+#center.onwhite #burstrank.pass b,
+#center.onwhite #burstrank.pass span { color:#00756c; }
+#center.onwhite #burstrank.near b    { color:#a86b00; }
+#burst {
+  font-size: clamp(22px, 5.2vw, 44px); font-weight:900; letter-spacing:.02em;
+  opacity:0; transform:scale(.8);
+}
+#burst.show { animation: burst .5s cubic-bezier(.2,.9,.3,1) forwards; }
+@keyframes burst { 0%{opacity:0;transform:scale(.7)} 40%{opacity:1;transform:scale(1.06)} 100%{opacity:1;transform:scale(1)} }
+#burstsub { font-size:13px; font-weight:700; color:var(--fx-sub); margin-top:2px; opacity:0; }
+#burstsub.show { opacity:1; }
+#burstrank { margin-top:10px; opacity:0; transform:translateY(6px);
+             transition: opacity .18s ease-out, transform .18s ease-out; }
+#burstrank.show { opacity:1; transform:none; }
+#burstrank b { display:block; color:var(--fx-ink);
+               font-size: clamp(17px, 4.2vw, 30px); font-weight:900; letter-spacing:.02em; }
+#burstrank span { display:block; margin-top:2px; font-size:12px; font-weight:700; color:var(--fx-sub); }
+#burstrank.pass b { color:var(--fx-hi); font-size: clamp(20px, 5.0vw, 40px);
+                    animation: rankPop .5s cubic-bezier(.2,.9,.3,1); }
+#burstrank.pass span { color:var(--fx-hi); font-size:16px; margin-top:4px; }
+#burstrank.near b { color:var(--fx-warn); }
+@keyframes rankPop { 0%{transform:scale(.72)} 45%{transform:scale(1.12)} 100%{transform:scale(1)} }
+
+/* ---- 操作盤。ふだんは画面の外 ---- */
+#panel {
+  position:fixed; left:0; right:0; bottom:0; z-index:60;
+  max-height:78vh; overflow:auto; -webkit-overflow-scrolling:touch;
+  background:var(--surface); border-top:1px solid var(--line);
+  border-radius:14px 14px 0 0;
+  padding:10px 12px max(16px, env(safe-area-inset-bottom));
+  box-shadow:0 -10px 30px rgba(0,0,0,.28);
+  transform: translateY(100%); transition: transform .22s ease-out;
+}
+#panel.open { transform:none; }
+#open {
+  position:fixed; right:14px; z-index:61;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width:52px; height:52px; border-radius:50%;
+  background:var(--accent); color:#fff; border:none;
+  font-size:20px; font-weight:900; line-height:1;
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+  display:grid; place-items:center; padding:0; transition: opacity .18s;
+}
+#open.gone { opacity:0; pointer-events:none; }
+#hint {
+  position:fixed; left:0; right:80px; z-index:46; text-align:center;
+  bottom: calc(max(14px, env(safe-area-inset-bottom)) + 14px);
+  pointer-events:none; opacity:0; transition: opacity .25s;
+}
+#hint b { display:inline-block; font-size:12px; font-weight:700; color:#eef2f4;
+          background:rgba(5,7,10,.72); border-radius:999px; padding:6px 14px; }
+#hint.show { opacity:1; }
+
+.pbar { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.pbar h1 { font-size:14px; margin:0; flex:1; }
+.lab { font-size:11px; font-weight:800; color:var(--muted); margin:12px 0 5px; }
+.lab em { font-style:normal; color:var(--ink); }
+.grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; }
+button {
+  font:inherit; font-size:13px; font-weight:700; color:var(--ink);
+  background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
+  padding:10px 6px; cursor:pointer; text-align:center; line-height:1.3;
+}
+button:active { background:var(--line-soft); }
+button .k { display:block; font-size:10px; font-weight:700; color:var(--muted); margin-top:2px; }
+button.on { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+button.wide { grid-column:1 / -1; }
+button.tog { flex:none; padding:8px 12px; font-size:12px; }
+select { font:inherit; font-size:13px; padding:8px 9px; border:1px solid var(--line);
+         border-radius:9px; background:var(--surface-2); color:var(--ink); }
+#read { margin-top:9px; font-size:12px; color:var(--muted);
+        border-top:1px dashed var(--line); padding-top:7px; min-height:2.6em; }
+#read b { color:var(--ink); }
+.note { font-size:11px; color:var(--muted); margin:10px 0 0; line-height:1.65; }
+.note b { color:var(--ink); }
+</style>
+
+<div id="board">
+  <div class="hud">
+    <div class="hudrow">
+      <span>自分</span><span class="n me">1380</span><span class="sp"></span>
+      <span>CPU</span><span class="n cpu">600</span>
+    </div>
+    <div class="bar me"><i></i></div>
+    <div class="hudmid">
+      <div class="stage">第 14 機</div>
+      <div class="goal"><b>2位</b>相当 ／ あと <b>1</b> 機で <b>1位</b></div>
+    </div>
+    <div class="bar cpu"><i></i></div>
+  </div>
+  <div class="mid">
+    <div class="bench"><i class="p0"></i><i class="p1"></i><i class="p2"></i><i class="p3"></i><i class="p4"></i></div>
+    <div class="bench"><i class="p0"></i><i class="p1"></i><i class="p2"></i><i class="p3"></i><i class="p4"></i></div>
+  </div>
+  <div class="hand"><i></i><i></i><i></i><i></i></div>
+</div>
+
+<div id="burstveil"></div>
+<img id="fxpop" alt="">
+<div id="center">
+  <div id="burst"></div>
+  <div id="burstsub"></div>
+  <div id="burstrank"></div>
+</div>
+
+<div id="hint"></div>
+<button id="open" aria-label="操作盤を開く">≡</button>
+
+<div id="panel">
+  <div class="pbar">
+    <h1>煽り演出の見比べ（POP調）</h1>
+    <select id="theme">
+      <option value="">端末に合わせる</option>
+      <option value="dark">暗い</option>
+      <option value="light">明るい</option>
+    </select>
+    <button class="tog" id="toggle">閉じる</button>
+  </div>
+
+  <div class="lab">1位になった — <em>おめでとう！撃墜王！</em>（金文字・採用済み）</div>
+  <div class="grid">
+    <button data-pop="q_king_2_t" data-kind="king" class="on">一段<span class="k">金の内枠</span></button>
+    <button class="wide" data-pop="" data-kind="king" style="grid-column:2 / -1">絵なし（文字だけ）</button>
+  </div>
+
+  <div class="lab">2位になった — <em>おめでとう！２位！</em>（銀文字・曲線の矢印）</div>
+  <div class="grid">
+    <button data-pop="c_r2_1_t" data-kind="r2" class="on">1 下を通る<span class="k">文字は上・二段</span></button>
+    <button data-pop="c_r2_2_t" data-kind="r2">2 背後を回る<span class="k">文字は一段</span></button>
+    <button data-pop="c_r2_3_t" data-kind="r2">3 ゆるい坂<span class="k">矢印が右へ抜ける</span></button>
+    <button data-pop="c_r2_4_t" data-kind="r2">4 二本<span class="k">大小の曲線</span></button>
+    <button data-pop="c_r2_5_t" data-kind="r2">5 弧＋速度線<span class="k">きらめき付き</span></button>
+    <button class="wide" data-pop="" data-kind="r2">絵なし（文字だけ）</button>
+  </div>
+
+  <div class="lab">3位になった — <em>おめでとう！３位！</em>（銅文字・曲線の矢印）</div>
+  <div class="grid">
+    <button data-pop="c_r3_1_t" data-kind="r3" class="on">1 下を通る<span class="k">文字は上・二段</span></button>
+    <button data-pop="c_r3_2_t" data-kind="r3">2 背後を回る<span class="k">文字は一段</span></button>
+    <button data-pop="c_r3_3_t" data-kind="r3">3 ゆるい坂<span class="k">矢印が右へ抜ける</span></button>
+    <button data-pop="c_r3_4_t" data-kind="r3">4 二本<span class="k">大小の曲線</span></button>
+    <button data-pop="c_r3_5_t" data-kind="r3">5 弧＋速度線<span class="k">きらめき付き</span></button>
+    <button class="wide" data-pop="" data-kind="r3">絵なし（文字だけ）</button>
+  </div>
+
+  <div class="lab">自己ベスト更新 — <em>絵はそのまま</em></div>
+  <div class="grid">
+    <button data-pop="p_best_a_t" data-kind="best" class="on">緑の爆発<span class="k">黄文字・網点</span></button>
+    <button class="wide" data-pop="" data-kind="best" style="grid-column:2 / -1">絵なし（文字だけ）</button>
+  </div>
+
+  <div id="read">ボタンを押すと、本物と同じ間で出します。画面をタップでもう一度。</div>
+
+  <p class="note">
+    <b>背景は無し。</b>出すのはステッカー1枚だけ。<br><br><b>吹き出しと文字は1枚の絵。</b>この様式は形と文字が一体なので、分けられない。
+    白地で描かせて、<b>縁から繋がっている白だけ</b>を透明に抜いてある（文字の白は残る）。
+    黒い輪郭が主役なので、前の案のような screen 合成はしない。<br><br>
+    <b>動きはCSS。</b>判子を押すように行き過ぎて戻る。どれも1.32秒で揃えてある。<br><br>
+    <b>出すのは「上がった瞬間」だけ。</b>1位・2位・3位に入った瞬間と、自己ベストを越えた瞬間。
+    それぞれ1走りに最多1回で、追いかけている間は何も出さない（「あと◯機」は廃止した）。<br><br>
+    <b>「第N機」「加速 ○秒」は数字が変わるので絵にできない。</b>そこだけ文字のまま、ステッカーの下に置いてある。<br><br>
+    <b>参考にもらった市販の素材は読み込ませていない。</b>様式を言葉で伝えて一から描かせたもの。
+  </p>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const PASS_HOLD_MS = 700;
+const STAGE_MS     = 620;
+const HOLD_TEXT_MS = 1100;
+
+/* 出す場面。**すべて「順位が上がった瞬間」と「自己ベストを越えた瞬間」だけ。**
+   「あと◯機」は廃止した（実機の指示）。追いかけている間は何も出さない。
+   どれも 1走りに最多1回なので、止める時間は全部 1.32秒で揃える。 */
+const KIND = {
+  king: { rank:"pass", main:"おめでとう！撃墜王！", sub:"", stop: STAGE_MS + PASS_HOLD_MS, hold: HOLD_TEXT_MS + PASS_HOLD_MS },
+  r2:   { rank:"pass", main:"おめでとう！２位！",   sub:"", stop: STAGE_MS + PASS_HOLD_MS, hold: HOLD_TEXT_MS + PASS_HOLD_MS },
+  r3:   { rank:"pass", main:"おめでとう！３位！",   sub:"", stop: STAGE_MS + PASS_HOLD_MS, hold: HOLD_TEXT_MS + PASS_HOLD_MS },
+  best: { rank:"pass", main:"自己ベスト更新",       sub:"", stop: STAGE_MS + PASS_HOLD_MS, hold: HOLD_TEXT_MS + PASS_HOLD_MS },
+};
+/* 用途ごとに、いま選んでいるステッカー。**自己ベストだけは前に決めたA案のまま。** */
+const PICK = { king:"q_king_2_t", r2:"c_r2_1_t", r3:"c_r3_1_t", best:"p_best_a_t" };
+
+let timer = 0, last = null;
+
+function setPanel(open) {
+  $("#panel").classList.toggle("open", open);
+  $("#open").classList.toggle("gone", open);
+}
+function hint(s) {
+  const h = $("#hint");
+  h.textContent = "";
+  const b = document.createElement("b");
+  b.textContent = s;
+  h.appendChild(b);
+  h.classList.add("show");
+  clearTimeout(hint._t);
+  hint._t = setTimeout(() => h.classList.remove("show"), 2000);
+}
+
+function clearAll() {
+  clearTimeout(timer);
+  $("#burst").classList.remove("show");
+  $("#burstsub").classList.remove("show");
+  $("#burstrank").className = "";
+  $("#burstveil").classList.remove("go");
+  $("#fxpop").className = "";
+  $("#center").classList.remove("onwhite");
+}
+
+/** **絵を出すときは、CSS の煽り文は出さない。** 二重になる。 */
+function showText(k, useImage) {
+  const burst = $("#burst"), bsub = $("#burstsub"), r = $("#burstrank");
+  $("#center").classList.add("stage", "onwhite");   // 覆いが白いので、文字は暗い色
+  $("#center").classList.toggle("withimg", !!useImage);
+  burst.textContent = "第 15 機";
+  burst.style.color = "var(--fx-warn)";
+  bsub.textContent = "加速　組み立て 3.1秒";
+  r.className = ""; r.textContent = "";
+  if (!useImage) {
+    const b = document.createElement("b");
+    b.textContent = k.main;
+    r.appendChild(b);
+    if (k.sub) {
+      const sp = document.createElement("span");
+      sp.textContent = k.sub;
+      r.appendChild(sp);
+    }
+  }
+  burst.classList.remove("show"); bsub.classList.remove("show");
+  void burst.offsetWidth;
+  burst.classList.add("show"); bsub.classList.add("show");
+  if (!useImage) { r.classList.add("show", k.rank); }
+  timer = setTimeout(clearAll, k.hold);
+}
+
+/** 絵を1枚読む。**読み終わるまで待たせる**（初回だけ文字が先に出るのを防ぐ）。 */
+function load(img, name) {
+  if (!name) { return Promise.resolve(false); }
+  if (img.dataset.file === name && img.complete && img.naturalWidth) { return Promise.resolve(true); }
+  img.dataset.file = name;
+  return new Promise((done) => {
+    img.onload  = () => done(true);
+    img.onerror = () => { hint("絵が読み込めません: " + name); done(false); };
+    img.src = "mecha/fx/" + name + ".png";
+  });
+}
+
+async function play(kindName) {
+  clearAll();
+  const token = {};
+  last = kindName;
+  play._t = token;
+  const k = KIND[kindName];
+
+  const name = PICK[kindName];
+  if (name) { hint("読み込み中…"); }
+  const ok = await load($("#fxpop"), name);
+  if (play._t !== token) { return; }
+
+  $("#burstveil").classList.add("go");
+  if (ok) {
+    const p = $("#fxpop");
+    p.className = "";
+    void p.offsetWidth;                      // 同じものを続けて押しても、頭から動かす
+    p.classList.add("slow");   // どれも 1走りに1回なので、長さは揃える
+  }
+  showText(k, ok);
+  $("#read").innerHTML = "<b>" + (name || "絵なし") + "</b>"
+    + "　／　盤面が止まる <b>" + (k.stop / 1000).toFixed(2) + "秒</b>"
+    + "　／　出ている時間 <b>" + (k.hold / 1000).toFixed(2) + "秒</b>";
+}
+
+for (const b of document.querySelectorAll("[data-kind]")) {
+  b.addEventListener("click", () => {
+    const kind = b.dataset.kind;
+    for (const o of document.querySelectorAll("[data-kind]")) {
+      if (o.dataset.kind === kind) { o.classList.remove("on"); }
+    }
+    b.classList.add("on");
+    PICK[kind] = b.dataset.pop;
+    setPanel(false);
+    setTimeout(() => play(kind), 240);
+  });
+}
+
+// 画面のどこでもタップで、もう一度
+document.addEventListener("click", (e) => {
+  if ($("#panel").classList.contains("open")) { return; }
+  if (e.target.closest("#panel") || e.target.closest("#open")) { return; }
+  if (last) { play(last); }
+});
+
+$("#open").addEventListener("click", () => setPanel(true));
+$("#toggle").addEventListener("click", () => setPanel(false));
+$("#theme").addEventListener("change", (e) => {
+  if (e.target.value) { document.documentElement.setAttribute("data-theme", e.target.value); }
+  else { document.documentElement.removeAttribute("data-theme"); }
+});
+
+setPanel(false);
+hint("右下の ≡ から、見比べる案を選べます");
+</script>

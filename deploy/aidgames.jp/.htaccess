@@ -1,0 +1,53 @@
+# =========================================================================
+# aidgames.jp のドキュメントルート用
+# =========================================================================
+#
+# ■ 置き場所
+#     /home/caoipsov/public_html/aidgames.jp/.htaccess
+#
+#     **この階層に置くこと。** robospeed/ の中に置いても意味がない。
+#     このファイルは aidgames.jp のフォルダ以下だけに効く。
+#     avfan.mixh.jp 側の .htaccess は読みも書きもしないし、
+#     上の階層（public_html/）へ効き上がることもない。
+#
+# ■ 置くのは SSL が出てから
+#     証明書が無いうちに https:// へ飛ばすと、開けなくなる。
+#     2026-09-09 時点で https は既に 200 を返している（確認済み）。
+# =========================================================================
+
+# ---- ディレクトリ一覧を止める ----
+# MixHost は既定で有効になっていて、フォルダ名だけで中身が全部見える。
+# 実際 https://aidgames.jp/ は「Index of /」を返していた（2026-09-09 確認）。
+# 下の階層にも効くので、robospeed/ も api/ も一覧されなくなる。
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+
+# ここで RewriteEngine を宣言しておくことに意味がある。
+# 親（public_html/.htaccess）には
+#   「実ファイルもディレクトリも無ければ archives/actress/index.php へ」
+# という総取りの規則がある。mod_rewrite は既定で親の規則を子に継承しないので、
+# 子が自前の規則を持てば、そこで断ち切れる。
+# **実測では漏れていない**（存在しないパスは素の404だった）が、保険として置く。
+
+# SSL証明書の確認用は素通し。ここを止めると証明書の更新が失敗する。
+RewriteCond %{REQUEST_URI} ^/\.well-known/
+RewriteRule ^ - [L]
+
+# 入口を1つに寄せる。
+#   ・aidgames.jp 以外のホスト名（avfan.mixh.jp/aidgames.jp/... と
+#     aidgames.jp.avfan.mixh.jp/... の2つが同じ中身を出してしまう）
+#   ・http で来たもの
+# を、すべて https://aidgames.jp/ へ 301 で送る。
+#
+# ※ もし無限リダイレクトになったら %{HTTPS} が正しく渡っていない。
+#    その場合は下の2行目（RewriteCond %{HTTPS} !=on）を消せば止まる。
+RewriteCond %{HTTP_HOST} !^aidgames\.jp$ [NC,OR]
+RewriteCond %{HTTPS} !=on
+RewriteRule ^(.*)$ https://aidgames.jp/$1 [R=301,L]
+</IfModule>
+
+# 無いものは素直に404を返す。親の規則に拾わせない。
+ErrorDocument 404 default

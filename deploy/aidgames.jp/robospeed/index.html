@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROBO SPEED — AID GAMES</title>
+<meta name="description" content="カードを5枚そろえてロボットを組み立て、撃つ。色の揃いかたで威力が決まる。Android 向けのハイスコアゲーム。">
+<meta property="og:title" content="ROBO SPEED">
+<meta property="og:description" content="カードを5枚そろえてロボを組み、撃つ。色の揃いかたで威力が決まる。速さと役の駆け引き。">
+<meta property="og:image" content="https://aidgames.jp/robospeed/shots/hero.jpg">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<!--
+  =========================================================================
+  ROBO SPEED 紹介ページ
+  =========================================================================
+
+  ■ 置き場所
+      /home/caoipsov/public_html/aidgames.jp/robospeed/index.html
+
+  ■ ここに「遊べるゲーム」は置かない（2026-09-09 に決めた）
+      ストアから来た人が、広告なし・インストール不要の同じものを
+      ここで遊べてしまうと、アプリを入れる理由が無くなる。
+      **このページは紹介だけ。** 遊ぶ導線はストアへ向ける。
+
+  ■ 書いてあることは全部、実物で確かめた事実
+      役7種類／メーカー5社／部位5か所／図鑑35体／難易度3段階／ピュアカラー ×11.50。
+      画面写真は Pixel 9a の実機から撮ったもので、加工していない（縮小のみ）。
+      **「爽快」「超進化」のような、確かめようのない言葉は使わない。**
+      誇大表現は Play の規約違反にもなる。盛らない。
+
+  ■ リリースしたら直すところ
+      ★STORE_LINK の印を付けた2か所を、Google Play のリンクに差し替える。
+  =========================================================================
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --ink: #12171a; --muted: #5c676d; --line: #d5dcdf;
+    --bg: #ffffff; --card: #f6f8f9; --accent: #00756c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8ecee; --muted: #98a3a9; --line: #39424a;
+      --bg: #14181b; --card: #1c2126; --accent: #2ec4b6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 0 72px;
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    line-height: 1.85; color: var(--ink); background: var(--bg);
+  }
+  .wrap { width: 100%; max-width: 720px; margin: 0 auto; padding: 0 20px; }
+  a { color: var(--accent); }
+
+  header { padding: 28px 0 0; }
+  .crumb { font-size: 12px; color: var(--muted); }
+  .hero { margin: 16px 0 24px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+  .hero img { display: block; width: 100%; height: auto; }
+  h1 { font-size: 28px; letter-spacing: .05em; margin: 0 0 4px; }
+  .lede { font-size: 15px; margin: 0 0 20px; }
+
+  .cta { border: 1px solid var(--line); background: var(--card); border-radius: 10px;
+         padding: 16px 18px; margin: 0 0 8px; }
+  .cta .s { font-size: 13px; color: var(--muted); margin: 0; }
+  /* テスター募集。**枠だけで目立たせる。** 色を足すと紹介ページの落ち着きが崩れる */
+  a.recruit {
+    display: block; text-decoration: none; color: inherit;
+    border-color: var(--accent); border-left-width: 4px;
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+  a.recruit:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  a.recruit .t { display: block; font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+  a.recruit .d { display: block; font-size: 13px; color: var(--muted); }
+
+  h2 { font-size: 16px; margin: 40px 0 12px; padding-top: 20px; border-top: 1px solid var(--line); }
+  p { font-size: 14.5px; margin: 0 0 12px; }
+  ul { padding-left: 1.3em; margin: 0 0 12px; }
+  li { font-size: 14.5px; }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  /* 役の並び。**上の役ほど強い**ことが、順番だけで伝わるようにする */
+  ol.hands { list-style: none; padding: 0; margin: 0 0 12px;
+             counter-reset: h; display: grid; gap: 4px; }
+  ol.hands li {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); font-size: 14px;
+  }
+  ol.hands li .n { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--muted); font-size: 12px; }
+  ol.hands li.top { border-color: var(--accent); }
+  ol.hands li .x { margin-left: auto; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  /* 画面写真。**横に流す。** 縦長9枚を縦に積むと、読む前に飽きる */
+  .shots { display: flex; gap: 14px; overflow-x: auto; padding: 4px 20px 16px;
+           scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  .shots figure { margin: 0; flex: 0 0 auto; width: 220px; scroll-snap-align: start; }
+  .shots img { display: block; width: 220px; height: auto; border-radius: 10px;
+               border: 1px solid var(--line); background: var(--card); }
+  .shots figcaption { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.55; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 12px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--card); font-weight: 700; white-space: nowrap; }
+
+  footer { margin-top: 48px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <p class="crumb"><a href="/">AID GAMES</a> ／ ROBO SPEED</p>
+  </header>
+
+  <div class="hero"><img src="shots/hero.jpg" alt="ROBO SPEED" width="1024" height="500"></div>
+
+  <h1>ROBO SPEED</h1>
+  <p class="lede">
+    カードを5枚そろえてロボットを組み立て、撃つ。<strong>色の揃いかたで威力が決まります。</strong>
+    Android 向け。
+  </p>
+
+  <!-- ★RECRUIT_STATUS 12人そろったら、この段を消す。
+       ★STORE_LINK 公開されたら、ここをストアのボタンに差し替える。 -->
+  <a class="cta recruit" href="test.html">
+    <span class="t">テスターを募集しています</span>
+    <span class="d">Google Play で公開するために、12人のテスターが必要です。参加は3分ほど。→ 詳しくはこちら</span>
+  </a>
+
+</div>
+
+<h2 class="wrap" style="margin-bottom:4px">画面</h2>
+<div class="shots">
+  <figure><img src="shots/02_board.jpg" alt="盤面" width="540" height="1212">
+    <figcaption>カードをタップして、頭・胸・腰・腕・脚の5か所を埋める。左が自分、右が相手。</figcaption></figure>
+  <figure><img src="shots/03_launch.jpg" alt="出撃" width="540" height="1212">
+    <figcaption>そろったら出撃。色の揃いかたで役が決まり、そのまま威力になる。</figcaption></figure>
+  <figure><img src="shots/04_purecolor.jpg" alt="ピュアカラー" width="540" height="1212">
+    <figcaption>5枚とも同じ社でそろえたピュアカラー。ワンペアの11.5倍の一撃。</figcaption></figure>
+  <figure><img src="shots/05_result.jpg" alt="結果画面" width="540" height="1212">
+    <figcaption>1本の走りで何機倒せたか。組み立ての速さや最高の役も残る。</figcaption></figure>
+  <figure><img src="shots/06_ranking.jpg" alt="ランキング" width="540" height="1212">
+    <figcaption>オンラインランキング。同じ撃破数なら、組み立てが速いほうが上。</figcaption></figure>
+  <figure><img src="shots/07_book.jpg" alt="図鑑" width="540" height="1212">
+    <figcaption>出した機体は図鑑に残る。7つの役 × 5社で、全35体。</figcaption></figure>
+  <figure><img src="shots/09_howto.jpg" alt="遊び方" width="540" height="1212">
+    <figcaption>操作はタップだけ。フリックも長押しもない。</figcaption></figure>
+  <figure><img src="shots/01_title.jpg" alt="タイトル" width="540" height="1212">
+    <figcaption>難易度は3段階。自己ベストと図鑑の埋まり具合がここに出る。</figcaption></figure>
+</div>
+
+<div class="wrap">
+
+  <h2>色が揃うほど強い</h2>
+  <p>
+    カードには5つの部位（頭・胸・腰・腕・脚）と、5社のメーカー色があります。
+    5枚そろえると機体が完成し、色の揃いかたで「役」が決まります。
+  </p>
+  <ol class="hands">
+    <li class="top"><span class="n">7</span> ピュアカラー<span class="x">×11.50</span></li>
+    <li><span class="n">6</span> フォーカード<span class="x">×6.25</span></li>
+    <li><span class="n">5</span> プリズム<span class="x">×4.71</span></li>
+    <li><span class="n">4</span> フルハウス<span class="x">×4.71</span></li>
+    <li><span class="n">3</span> スリーカード<span class="x">×2.82</span></li>
+    <li><span class="n">2</span> ツーペア<span class="x">×1.77</span></li>
+    <li><span class="n">1</span> ワンペア<span class="x">×1.00</span></li>
+  </ol>
+  <p class="muted">
+    倍率は実際の画面に出る値です。プリズムは5枚が全部ちがう色の役で、
+    <strong>威力はフルハウスと同じ</strong>ですが、そろったときだけの専用の攻撃を持っています。
+  </p>
+  <p class="muted">
+    5枚の組み合わせは全部で3125通り。そのうちピュアカラーは<strong>5通りだけ</strong>です。
+  </p>
+
+  <h2>急ぐか、狙うか</h2>
+  <p>
+    敵は倒すたびに速くなります。じっくり色を揃えれば強い機体が組めますが、そのあいだに敵は組み終わります。
+    <strong>弱い役で早く撃つか、殴られるのを覚悟で強い役を待つか。</strong>
+    この判断が、そのまま撃破数の差になります。
+  </p>
+  <p>攻撃を受けると機体の部位が壊れます。組みかけの機体ほど、崩されると痛い。</p>
+
+  <h2>難易度</h2>
+  <table>
+    <tr><th>イージー</th><td>敵の加速がゆるい</td></tr>
+    <tr><th>ノーマル</th><td>これが基準</td></tr>
+    <tr><th>ハード</th><td>敵がすぐ速くなる</td></tr>
+  </table>
+  <p class="muted">変わるのは敵が速くなる勢いだけです。ランキングは難易度ごとに分かれています。</p>
+
+  <h2>正直に書いておくこと</h2>
+  <ul>
+    <li>広告が表示されます。<strong>走り終わった結果画面と、一時停止中だけ</strong>です。遊んでいる最中には出ません。</li>
+    <li><strong>アプリ内課金はありません。</strong></li>
+    <li>通信するのは、ランキングに記録を登録したときだけです。登録しなければ送信されません。</li>
+    <li>詳しくは <a href="privacy.html">プライバシーポリシー</a> に書いてあります。</li>
+  </ul>
+
+  <!-- ★RECRUIT_STATUS ／ ★STORE_LINK 上と同じ扱い -->
+  <a class="cta recruit" href="test.html" style="margin-top:32px">
+    <span class="t">テスターを募集しています</span>
+    <span class="d">2週間ほど、消さずに置いておいていただけるだけで助かります。→ 参加のしかた</span>
+  </a>
+
+  <footer>
+    作った人：AID GAMES ／ お問い合わせ：<a href="mailto:aid.2019.run@gmail.com">aid.2019.run@gmail.com</a><br>
+    画面写真は実機（Pixel 9a）から撮ったものです。縮小以外の加工はしていません。
+  </footer>
+
+</div>
+</body>
+</html>

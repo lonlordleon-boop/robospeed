@@ -1,0 +1,1354 @@
+<title>カード判別テストベンチ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --ground:      #e7eaec;
+  --surface:     #ffffff;
+  --surface-2:   #f3f5f6;
+  --ink:         #12171a;
+  --ink-2:       #3c464c;
+  --muted:       #5c676d;
+  --line:        #c9d1d5;
+  --line-soft:   #dde3e6;
+  --accent:      #00756c;
+  --accent-ink:  #ffffff;
+  --hazard:      #a86b00;
+  --hazard-bg:   #fdf3dd;
+  --good:        #1f7a4d;
+  --bad:         #b3352b;
+  --screen:      #0d1114;
+  --card-face:   #f7f8f8;
+
+  --f-display: "Chakra Petch", "Zen Kaku Gothic New", system-ui, sans-serif;
+  --f-body: "Zen Kaku Gothic New", system-ui, "Hiragino Sans", "Meiryo", sans-serif;
+
+  --step--1: 0.813rem;
+  --step-0:  0.95rem;
+  --step-1:  1.19rem;
+  --step-2:  1.55rem;
+  --step-3:  2.1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:     #14181b;
+    --surface:    #1d2226;
+    --surface-2:  #252b30;
+    --ink:        #e8ecee;
+    --ink-2:      #bcc6cb;
+    --muted:      #94a1a7;
+    --line:       #38434a;
+    --line-soft:  #2c353a;
+    --accent:     #3fbdaf;
+    --accent-ink: #08201e;
+    --hazard:     #e8b451;
+    --hazard-bg:  #33290f;
+    --good:       #4cc487;
+    --bad:        #e8776b;
+    --screen:     #05080a;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:     #14181b;
+  --surface:    #1d2226;
+  --surface-2:  #252b30;
+  --ink:        #e8ecee;
+  --ink-2:      #bcc6cb;
+  --muted:      #94a1a7;
+  --line:       #38434a;
+  --line-soft:  #2c353a;
+  --accent:     #3fbdaf;
+  --accent-ink: #08201e;
+  --hazard:     #e8b451;
+  --hazard-bg:  #33290f;
+  --good:       #4cc487;
+  --bad:        #e8776b;
+  --screen:     #05080a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: var(--step-0);
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+body.locked { overflow: hidden; }
+
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1rem, 3vw, 2rem) 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3.5rem;
+}
+
+.eyebrow {
+  font-family: var(--f-display);
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.75rem;
+}
+
+h1 {
+  font-family: var(--f-display);
+  font-size: var(--step-3);
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0 0 0.9rem;
+  text-wrap: balance;
+}
+
+.lede { margin: 0; max-width: 62ch; color: var(--ink-2); }
+
+.charter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.5rem; }
+
+.chip {
+  font-family: var(--f-display);
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--ink-2);
+}
+.chip.no::before { content: "✕ "; color: var(--bad); }
+.chip.yes::before { content: "✓ "; color: var(--good); }
+
+section { display: flex; flex-direction: column; gap: 1.25rem; }
+
+h2 {
+  font-family: var(--f-display);
+  font-size: var(--step-2);
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+}
+h2 .num {
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+h3 { font-family: var(--f-display); font-size: var(--step-1); font-weight: 600; margin: 0; }
+
+p { margin: 0; max-width: 66ch; }
+p.note { color: var(--muted); font-size: var(--step--1); }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 2rem;
+  align-items: flex-end;
+  padding: 1.1rem 1.3rem;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+}
+
+.ctl { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.ctl-label {
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.seg { display: flex; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+
+.seg button {
+  font-family: var(--f-body);
+  font-size: var(--step--1);
+  font-weight: 500;
+  padding: 0.4rem 0.85rem;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.seg button:last-child { border-right: 0; }
+.seg button:hover { background: var(--surface-2); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+input[type="range"] { width: 190px; accent-color: var(--accent); }
+
+.readout {
+  font-family: var(--f-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.btn {
+  font-family: var(--f-display);
+  font-size: var(--step-0);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0.6rem 1.5rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.btn[disabled] { opacity: 0.5; cursor: default; }
+
+.btn-big {
+  font-size: var(--step-1);
+  padding: 0.85rem 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.btn-big::before { content: "▭"; transform: rotate(90deg); font-size: 1.2em; }
+
+/* ---------- phone preview ---------- */
+
+.phone-scroll { overflow-x: auto; padding-bottom: 0.5rem; }
+
+.phone {
+  min-width: 480px;
+  aspect-ratio: 19.5 / 9;
+  background: var(--screen);
+  border: 10px solid #23292d;
+  border-radius: 20px;
+  padding: 2.2% 3%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.22);
+}
+
+.hpbar { display: flex; justify-content: space-between; gap: 8%; }
+.hp { flex: 1; height: 9px; background: rgba(255,255,255,0.11); border-radius: 1px; overflow: hidden; }
+.hp i { display: block; height: 100%; background: #4ea5c9; }
+.hp.foe i { background: #c96a4e; margin-left: auto; }
+
+.benches { flex: 1; display: flex; justify-content: space-between; gap: 6%; padding: 2.5% 0 1.5%; min-height: 0; }
+
+.bench {
+  flex: 1;
+  border: 1px dashed rgba(255,255,255,0.18);
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  font-family: var(--f-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.3);
+}
+
+.line { display: flex; justify-content: center; align-items: flex-end; gap: 1.6%; padding-top: 1%; }
+
+/* ---------- card ---------- */
+
+.card {
+  width: 15%;
+  aspect-ratio: 3 / 4;
+  background: var(--card-face);
+  border-radius: 3px;
+  border-bottom: 4px solid var(--mfr, #888);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 7px rgba(0,0,0,0.4);
+}
+
+.line.live .card { cursor: pointer; }
+.line.live .card:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* フレックス子だと高さの百分率が解決されず、縦長の絵がはみ出して切れる。
+   .art をカードに対して絶対配置して箱を確定させ、その中で画像の寸法を明示する。
+   （img は置換要素なので、オフセットだけ与えて width/height:auto にすると実寸が優先されてしまう） */
+.card .art {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 8%;
+}
+.card .art img {
+  position: absolute;
+  left: 6%;
+  top: 6%;
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+  display: block;
+}
+
+.card .art.img-failed {
+  background: repeating-linear-gradient(45deg, #f0d6d3, #f0d6d3 6px, #e6c4c0 6px, #e6c4c0 12px);
+}
+.card .art.img-failed img { display: none; }
+.card .art.img-failed::after {
+  content: "画像NG";
+  font-family: var(--f-body);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #8c2f26;
+  white-space: nowrap;
+}
+
+.card .sil {
+  position: absolute;
+  right: 4%;
+  bottom: 4%;
+  width: var(--silw, 26%);
+  filter: drop-shadow(0 0 2px rgba(255,255,255,0.9));
+}
+
+.card .mfr-tag { position: absolute; left: 0; top: 0; width: 20%; height: 8%; background: var(--mfr, #888); }
+
+.card[data-mode="icon"] .art { opacity: 0; }
+/* アイコンのみのときは中央寄せ。大きさはスライダーに従わせて条件を揃える。 */
+.card[data-mode="icon"] .sil { left: 50%; right: auto; bottom: 20%; transform: translateX(-50%); }
+
+/* ---------- 全体像モード ---------- */
+/* うっすらした全身の輪郭の中に、該当箇所だけ実物の絵を置く。 */
+
+.card .body {
+  position: absolute;
+  top: 4%;
+  bottom: 4%;
+  left: 50%;
+  transform: translateX(-50%);
+  aspect-ratio: 40 / 60;
+  display: none;
+}
+.card[data-mode="body"] .body { display: block; }
+.card[data-mode="body"] .art,
+.card[data-mode="body"] .sil { display: none; }
+
+.card .body .ghost {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* 輪郭は全部うっすら。強調は実物の絵そのものが担う。 */
+.card .body .ghost .off,
+.card .body .ghost .on { fill: #ccd4d8; }
+
+/* 基準測定：識別を要さないカード。●が付いた1枚を押すだけ。 */
+.card[data-mode="base"] .body,
+.card[data-mode="base"] .art,
+.card[data-mode="base"] .sil,
+.card[data-mode="base"] .mfr-tag { display: none; }
+.card[data-mode="base"][data-basehit="1"]::after {
+  content: "";
+  position: absolute;
+  left: 27%;
+  top: 33%;
+  width: 46%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #12171a;
+}
+
+/* 目標の提示。文字ではなく人型の絵で示す。 */
+.t-fig {
+  display: inline-block;
+  vertical-align: middle;
+  height: 2.6em;
+  margin: 0 0.6em;
+}
+.t-fig .target-sil { height: 100%; width: auto; }
+.t-fig .target-sil .off { fill: rgba(255,255,255,0.22); }
+.t-fig .target-sil .on { fill: #ffffff; }
+
+.t-dot {
+  display: inline-block;
+  vertical-align: middle;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: #fff;
+  margin: 0 0.4em;
+}
+
+.card .body .piece { position: absolute; }
+.card .body .piece img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.card[data-mode="art"] .sil { display: none; }
+
+.card.hit { outline: 3px solid #2e9e5b; outline-offset: 1px; }
+.card.miss { outline: 3px solid #d1443a; outline-offset: 1px; }
+
+.sil .off { fill: #c3cace; }
+.sil .on  { fill: #101619; }
+
+/* ---------- search test ---------- */
+
+.arena {
+  background: var(--screen);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.target {
+  font-family: var(--f-display);
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.55);
+  text-align: center;
+}
+.target b {
+  font-size: 1.7em;
+  color: #fff;
+  display: inline-block;
+  padding: 0 0.35rem;
+}
+
+.arena .line { width: 100%; }
+
+.hidden { display: none !important; }
+
+.score { display: flex; gap: 2rem; flex-wrap: wrap; font-family: var(--f-display); font-variant-numeric: tabular-nums; }
+.score b { font-size: var(--step-2); font-weight: 700; display: block; line-height: 1.1; }
+.score span { font-size: 0.72rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+.verdict { font-weight: 600; }
+.verdict.ok { color: var(--good); }
+.verdict.ng { color: var(--bad); }
+
+/* ---------- real-device stage ---------- */
+
+#stage {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: var(--screen);
+  display: none;
+  flex-direction: column;
+  padding: 2.5vh 3vw;
+  color: #fff;
+  overscroll-behavior: none;
+}
+#stage.on { display: flex; }
+#stage .benches { padding: 2vh 0 1vh; }
+
+#stage-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  background: rgba(0,0,0,0.55);
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+  z-index: 3;
+}
+
+#stage-bar button {
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.6rem;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 2px;
+  cursor: pointer;
+}
+#stage-bar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+#stage-bar .spacer { flex: 1; }
+#stage-bar .stat { color: rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
+
+#stage-target {
+  position: absolute;
+  top: 2.4rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  z-index: 2;
+  font-family: var(--f-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  pointer-events: none;
+}
+#stage-target b { font-size: 1.9em; color: #fff; padding: 0 0.3rem; }
+
+#stage-inner { display: none; flex-direction: column; flex: 1; min-height: 0; padding-top: 1.9rem; }
+#stage.on #stage-inner { display: flex; }
+
+#rotate-note { display: none; }
+
+@media (orientation: portrait) {
+  #stage.on #stage-inner { display: none; }
+  #stage.on #stage-target { display: none; }
+  #stage.on #rotate-note {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    background: var(--screen);
+    font-family: var(--f-display);
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-align: center;
+    padding: 2rem;
+    line-height: 2;
+  }
+}
+
+/* ---------- findings ---------- */
+
+.findings { display: flex; flex-direction: column; gap: 1rem; }
+
+.finding {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 1rem;
+  padding: 1.1rem 1.3rem;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 3px;
+}
+.finding.warn { border-left-color: var(--hazard); background: var(--hazard-bg); }
+
+.finding .k {
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  grid-row: 1 / 4;
+  padding-top: 0.45rem;
+  white-space: nowrap;
+}
+.finding.warn .k { color: var(--hazard); }
+.finding h3 { margin-bottom: 0.25rem; }
+.finding p { color: var(--ink-2); }
+.finding p + p { margin-top: 0.5rem; }
+
+footer { border-top: 1px solid var(--line); padding-top: 1.25rem; color: var(--muted); font-size: var(--step--1); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">ロボ・スピード / 検証 D</p>
+    <h1>カード判別テストベンチ</h1>
+    <p class="lede">
+      共有ラインに並ぶメカカードから、<strong>必要な1枚をどれだけ速く見つけられるか</strong>を測る道具。
+      カードは消えない。本番でも共有ラインは表示され続ける。
+      測っているのは記憶力ではなく<strong>視覚探索の速さ</strong>。
+    </p>
+    <div class="charter">
+      <span class="chip no">V字アンテナ</span>
+      <span class="chip no">人の顔</span>
+      <span class="chip no">胸ダクト</span>
+      <span class="chip no">トリコロール</span>
+      <span class="chip yes">単眼バイザー</span>
+      <span class="chip yes">露出ジョイント</span>
+      <span class="chip yes">無彩色生成</span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="num">01</span>実機モード</h2>
+    <p>
+      <strong>スマホでこのページを開き、横向きにして下のボタンを押す。</strong>
+      画面いっぱいがゲーム画面になり、カードが本番と同じ物理サイズで並ぶ。
+      探索テストもこの中で走る。<strong>判定を取るならここで取る。</strong>
+    </p>
+    <button class="btn btn-big" type="button" id="open-stage">実機モードで開く</button>
+    <p class="note">
+      PC で押した場合はブラウザ窓いっぱいに広がる。比率と構図は確認できるが、
+      物理サイズが実機と違うので、時間の数字はあてにならない。
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="num">02</span>並びのプレビュー</h2>
+    <p>
+      左から <strong>右腕・左腕・腰・左足</strong>。
+      <strong>最難関の右腕と左腕をわざと隣に並べてある。</strong>
+      絵がほぼ同じで、シルエットの位置だけが手がかりになる組み合わせ。
+    </p>
+
+    <div class="controls">
+      <div class="ctl">
+        <span class="ctl-label" id="lbl-mode">表示モード</span>
+        <div class="seg" role="group" aria-labelledby="lbl-mode">
+          <button type="button" data-mode="art">絵のみ</button>
+          <button type="button" data-mode="icon">アイコンのみ</button>
+          <button type="button" data-mode="both" aria-pressed="true">両方</button>
+          <button type="button" data-mode="body">全体像</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <span class="ctl-label"><label for="sz">カード幅</label></span>
+        <input type="range" id="sz" min="9" max="20" step="0.5" value="15">
+      </div>
+      <div class="ctl">
+        <span class="ctl-label">画面幅に対して</span>
+        <span class="readout" id="szout">15.0 %</span>
+      </div>
+      <div class="ctl">
+        <span class="ctl-label"><label for="silsz">アイコンの大きさ</label></span>
+        <input type="range" id="silsz" min="20" max="80" step="2" value="26">
+      </div>
+      <div class="ctl">
+        <span class="ctl-label">カード幅に対して</span>
+        <span class="readout" id="silout">26 %</span>
+      </div>
+    </div>
+    <p class="note">
+      アイコンの大きさは<strong>03のテストにも実機モードにも同時に効く</strong>。
+      大きくしながら計測して、平均が500msを切る境界を探すのが今の目的。
+    </p>
+
+    <div class="phone-scroll">
+      <div class="phone">
+        <div class="hpbar">
+          <div class="hp"><i style="width:72%"></i></div>
+          <div class="hp foe"><i style="width:58%"></i></div>
+        </div>
+        <div class="benches">
+          <div class="bench">MY BENCH</div>
+          <div class="bench">CPU BENCH</div>
+        </div>
+        <div class="line" id="line-main"></div>
+      </div>
+    </div>
+    <p class="note" id="imgstatus">画像の読み込み方式: 確認中…</p>
+    <p class="note" id="imgwarn" style="display:none">
+      <strong>画像が読み込めていません。</strong>
+      このページは同じ場所にある <code>mecha/</code> フォルダの画像を参照します。
+      HTMLだけを移動すると絵が出ません。<code>card-readability-test.html</code> と
+      <code>mecha/</code> を同じフォルダに置いたまま、ブラウザで直接開いてください。
+      （アーティファクトとして開いた場合は、画像を配信できないため必ずこの状態になります）
+    </p>
+    <p class="note">
+      ※ 生成画像の背景がグレーのままなので、カード面に四角く乗って見える。本番は透過PNGなのでこの枠は消える。
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="num">03</span>探索テスト（PC用・参考値）</h2>
+    <p>
+      <strong>カードは消えない。</strong>「◯◯を探せ」と出るので、その部位のカードをクリックする。
+      見つけてクリックするまでの時間を測る。10回で判定。
+    </p>
+    <p>
+      <strong>最初に「基準」を1セット走らせること。</strong>
+      基準は識別のいらない課題（●の付いたカードを押すだけ）で、
+      <strong>「指示を見る＋手を動かす」だけにかかる固定費</strong>を測る。
+      これはカードの設計とは無関係で、誰がやっても数百msかかる。
+    </p>
+    <p>
+      以降のモードは <strong>実測 − 基準 ＝ 識別コスト</strong> で評価する。
+      これがカードを見分けるのに使った時間そのもの。<strong>目標は 300ms 以下、誤クリック 0。</strong>
+      絶対値の平均時間を目標と比べても意味がないので、必ず基準を取ってから比較すること。
+    </p>
+
+    <div class="controls">
+      <div class="ctl">
+        <span class="ctl-label" id="lbl-tmode">表示モード</span>
+        <div class="seg" role="group" aria-labelledby="lbl-tmode">
+          <button type="button" data-tmode="base">基準</button>
+          <button type="button" data-tmode="art">絵のみ</button>
+          <button type="button" data-tmode="icon">アイコンのみ</button>
+          <button type="button" data-tmode="both" aria-pressed="true">両方</button>
+          <button type="button" data-tmode="body">全体像</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <span class="ctl-label" id="lbl-pset">部位の数</span>
+        <div class="seg" role="group" aria-labelledby="lbl-pset">
+          <button type="button" data-pset="7" aria-pressed="true">7種（左右を分ける）</button>
+          <button type="button" data-pset="5">5種（分けない）</button>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      <strong>5種</strong>は、腕・脚を左右で分けない案。メカは 頭・胸・腰・腕・脚 の5種類になり、
+      腕カード2枚・脚カード2枚を使う。<strong>鏡像で見分けがつかない問題が構造的に消える。</strong>
+      7種と5種で平均時間を比べれば、左右の区別にいくら払っているかが分かる。
+      02のプレビューにも同時に効く。
+    </p>
+
+    <div class="arena">
+      <div class="target" id="target">スタートを押すと始まる</div>
+      <div class="line" id="line-test"></div>
+    </div>
+
+    <button class="btn" type="button" id="start">スタート</button>
+
+    <div class="score">
+      <div><b id="s-try">0</b><span>試行</span></div>
+      <div><b id="s-miss">0</b><span>誤クリック</span></div>
+      <div><b id="s-avg">—</b><span>平均</span></div>
+      <div><b id="s-best">—</b><span>最速</span></div>
+    </div>
+    <p class="verdict" id="verdict"></p>
+    <p class="note">
+      モードを変えて3回ずつ計測すると、絵が探索を助けているのか邪魔しているのかが分かる。
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="num">04</span>分かったこと</h2>
+    <div class="findings">
+
+      <div class="finding warn">
+        <div class="k">実測</div>
+        <h3>初回計測：平均 1956ms、目標の約4倍（誤クリック0）</h3>
+        <p>
+          「両方」モード・アイコン26%・10試行での結果。
+          <strong>誤クリックが0なので、情報は伝わっている。読むのが遅いだけ。</strong>
+          最速でも1079msで、目標の500msには一度も届いていない。
+        </p>
+        <p>
+          原因は2つ。<strong>①アイコンが小さく、1枚ずつ順に目を移して確認する状態になっている</strong>
+          （4枚を並列に把握できていないので枚数に比例して遅くなる）。
+          <strong>②右足と左足で絵が完全に同一</strong>なので、絵が判別に一切寄与せず、小さいアイコンだけが頼りになっている。
+        </p>
+        <p>
+          なおこのテストには「文字で示された部位名をシルエット上の位置に変換する」手順が入っている。
+          本番にはその変換が無いぶん速くなるが、4倍の差を埋めるほどではない。
+        </p>
+      </div>
+
+      <div class="finding warn">
+        <div class="k">設計ミス</div>
+        <h3>最初のフラッシュテストは、測る対象が間違っていた</h3>
+        <p>
+          「4枚を一瞬見て、消えてから思い出す」方式にしていたが、これは<strong>短期記憶のテスト</strong>で、
+          ゲームで実際にやることではない。人が一瞬で保持できるのは3〜4個が限界で、符号化にも時間がかかる。
+          0.8秒で4枚を把握できないのは当然で、<strong>被験者ではなくテストの側の問題</strong>だった。
+        </p>
+        <p>
+          本番では共有ラインは<strong>表示され続ける</strong>。4枚を覚える必要はなく、
+          必要な1枚を見つければいい。「0.5秒」は露出時間ではなく<strong>判断にかけられる時間</strong>。
+          そこで、カードを出したまま探させて時間を測る方式に作り直した。
+        </p>
+      </div>
+
+      <div class="finding warn">
+        <div class="k">要判断</div>
+        <h3>左右のメカを鏡像にすると、判別が最難関になる</h3>
+        <p>
+          左腕・左足は右のメカを鏡像にした暫定素材。
+          この状態だと右腕と左腕は<strong>絵がほぼ同じでシルエットの位置だけが手がかり</strong>になり、探索が一番苦しい。
+        </p>
+        <p>
+          仕様書 8-5 に「右腕＝主武装／左腕＝副武装・シールド」という案があるので、
+          <strong>左右で機能ごと別デザインにすれば、この問題は絵の側で解ける</strong>。
+          探索テストの時間差を見てから決める。
+        </p>
+      </div>
+
+      <div class="finding warn">
+        <div class="k">要対処</div>
+        <h3>頭部ユニットが、丸ドーム＋横一文字スリット＋頭頂アンテナになっている</h3>
+        <p>
+          憲章の「顔を作らない」は守れているが、この3点セットは既存の量産機を連想させる輪郭に寄っている。
+          <strong>頭頂の単アンテナを落とし、ドームを角張らせるか、光学系を縦スリットや複眼クラスタに変える</strong>のが安全。
+        </p>
+      </div>
+
+      <div class="finding warn">
+        <div class="k">要調整</div>
+        <h3>胴体が「部位」ではなく「荷物」に見える／構図が揃っていない</h3>
+        <p>
+          箱型のコンテナに見えるため、シルエットから胸だと推測できない。
+          肩の受け口と首の接続部を外側に張り出させると改善する。
+        </p>
+        <p>
+          また4枚とも3/4のあおり構図で、小さくすると輪郭が潰れる。
+          カード用は<strong>真正面・パース無し・同一スケール</strong>で生成し直したほうが探索も速くなる。
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="k">修正済</div>
+        <h3>左右の名前は、UIに出さない／メーカー色は毎回振り直す</h3>
+        <p>
+          シルエットは「図」なので向きの概念が無く、画面基準で読むしかない。
+          食い違うのは作業台のロボットのほうなので、<strong>左右の名前をプレイヤーに見せない</strong>ことにした。
+        </p>
+        <p>
+          また部位ごとに色を固定していたため「赤＝頭」という
+          <strong>本番には存在しない手がかり</strong>で正解できてしまっていた。配るたびにランダムに振り直すよう修正。
+        </p>
+      </div>
+
+      <div class="finding warn">
+        <div class="k">制約</div>
+        <h3>アーティファクト上では画像を表示できない</h3>
+        <p>
+          ビューアが <code>data:</code> も <code>blob:</code> も拒否するため、埋め込み画像が一切通らない。
+          アセット機能もこのアカウントでは使えないので、回避手段が無い。
+        </p>
+        <p>
+          <strong>絵ありのテストは、ローカルの <code>docs/card-readability-test.html</code> を
+          ブラウザで直接開いて行うこと。</strong>
+          中身は同一で、そちらでは画像が表示される。
+          アーティファクト側は、アイコンのみのテストと、この所見の記録用として残している。
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>
+    ロボ・スピード（仮題）／ 仕様書 v0.4 のフェーズ0「デザイン探索」の検証物。
+    画像は Higgsfield で生成した検討用の素材で、採用アセットではない。
+  </footer>
+
+</div>
+
+<div id="stage" aria-hidden="true">
+  <div id="rotate-note">端末を横向きにしてください</div>
+
+  <div id="stage-bar">
+    <button type="button" data-smode="art">絵</button>
+    <button type="button" data-smode="icon">ｱｲｺﾝ</button>
+    <button type="button" data-smode="both" aria-pressed="true">両方</button>
+    <button type="button" data-smode="body">全体像</button>
+    <button type="button" id="stage-start">スタート</button>
+    <span class="spacer"></span>
+    <span class="stat" id="stage-stat">—</span>
+    <button type="button" id="close-stage">閉じる ✕</button>
+  </div>
+
+  <div id="stage-target">スタートを押す</div>
+
+  <div id="stage-inner">
+    <div class="hpbar">
+      <div class="hp"><i style="width:72%"></i></div>
+      <div class="hp foe"><i style="width:58%"></i></div>
+    </div>
+    <div class="benches">
+      <div class="bench">MY BENCH</div>
+      <div class="bench">CPU BENCH</div>
+    </div>
+    <div class="line" id="stage-line"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // 画像は同じ場所に置いた実ファイルを参照する。
+  // 埋め込み（data:／blob:）はアーティファクトのビューアに拒否されるため使わない。
+
+  // 7種：左右の腕・脚を別スロットとして扱う（当初の仕様）。
+  var PARTS_7 = [
+    { key: "head",  label: "頭",   src: "mecha/m_head.png",  flip: false },
+    { key: "torso", label: "胸",   src: "mecha/m_torso.png", flip: false },
+    { key: "waist", label: "腰",   src: "mecha/m_waist.png", flip: false },
+    { key: "arm_r", label: "右腕", src: "mecha/m_arm.png",   flip: false },
+    { key: "arm_l", label: "左腕", src: "mecha/m_arm.png",   flip: true  },
+    { key: "leg_r", label: "右足", src: "mecha/m_leg.png",   flip: false },
+    { key: "leg_l", label: "左足", src: "mecha/m_leg.png",   flip: true  }
+  ];
+
+  // 5種：腕・脚を左右で分けない。腕カード2枚・脚カード2枚を使う想定。
+  // 鏡像で見分けがつかない問題が構造的に消える。
+  var PARTS_5 = [
+    { key: "head",  label: "頭", src: "mecha/m_head.png",  flip: false },
+    { key: "torso", label: "胸", src: "mecha/m_torso.png", flip: false },
+    { key: "waist", label: "腰", src: "mecha/m_waist.png", flip: false },
+    { key: "arm",   label: "両腕", src: "mecha/m_arm.png",   flip: false },
+    { key: "leg",   label: "両脚", src: "mecha/m_leg.png",   flip: false }
+  ];
+
+  var partSet = "7";
+  function activeParts() { return (partSet === "7") ? PARTS_7 : PARTS_5; }
+
+  // メーカー色は部位と無関係。毎回ランダムに割り当てないと
+  // 「赤＝頭」のような、本番には存在しない手がかりを与えてしまう。
+  var MFRS = ["#c4453a", "#2f6ac2", "#c99400", "#2b8f57", "#7a4fb5", "#c86a1f", "#7d8a92"];
+
+  var HAND_SIZE = 4;
+  var TRIALS = 10;
+
+  // 「指示を読む＋手を動かす」だけの固定費。基準モードで実測して入る。
+  var baselineMs = null;
+  // 実測から基準を引いた残り＝カードを見分けるのに使った時間。ここが評価対象。
+  var COST_GOAL = 300;
+
+  /* ---------- 画像の読み込み ---------- */
+
+  var imgReported = null;
+  function reportSource(kind) {
+    if (imgReported === kind) { return; }
+    imgReported = kind;
+    var el = document.getElementById("imgstatus");
+    if (el) {
+      el.textContent = (kind === "ok")
+        ? "画像: 読み込み成功"
+        : "画像: 読み込み失敗（mecha/ フォルダが見つからない）";
+    }
+    var warn = document.getElementById("imgwarn");
+    if (warn) { warn.style.display = (kind === "ok") ? "none" : ""; }
+  }
+
+  function loadInto(img, part) {
+    img.addEventListener("load", function () { reportSource("ok"); });
+    img.addEventListener("error", function () {
+      img.parentNode.classList.add("img-failed");
+      reportSource("ng");
+    });
+    img.src = part.src;
+  }
+
+  /* ---------- 描画 ---------- */
+
+  // 全身の中でのスロット位置。viewBox 40x60 を % に直したもの。
+  // 「全体像」モードで、実物の絵をここに置く。
+  var PART_BOX = {
+    head:  [{ l: 35,   t: 1.7,  w: 30, h: 20   }],
+    torso: [{ l: 30,   t: 25,   w: 40, h: 25   }],
+    waist: [{ l: 32.5, t: 51.7, w: 35, h: 11.7 }],
+    arm_l: [{ l: 5,    t: 26.7, w: 20, h: 33.3 }],
+    arm_r: [{ l: 75,   t: 26.7, w: 20, h: 33.3 }],
+    leg_l: [{ l: 32.5, t: 66.7, w: 15, h: 30   }],
+    leg_r: [{ l: 52.5, t: 66.7, w: 15, h: 30   }],
+    // 5種モードは左右まとめて実物を置く＝「腕（どちらでも）」の意味になる
+    arm:   [{ l: 5,    t: 26.7, w: 20, h: 33.3 }, { l: 75,   t: 26.7, w: 20, h: 33.3 }],
+    leg:   [{ l: 32.5, t: 66.7, w: 15, h: 30   }, { l: 52.5, t: 66.7, w: 15, h: 30   }]
+  };
+
+  // 左右は画面基準。画面の右に見えるものが右腕・右足。
+  // 5種モードでは「腕」「脚」が左右まとめて光る。
+  function silhouette(active, svgClass) {
+    function cls(n) {
+      if (active === n) { return "on"; }
+      if (active === "arm" && (n === "arm_l" || n === "arm_r")) { return "on"; }
+      if (active === "leg" && (n === "leg_l" || n === "leg_r")) { return "on"; }
+      return "off";
+    }
+    return '<svg class="' + (svgClass || "sil") + '" viewBox="0 0 40 60" aria-hidden="true">' +
+      '<circle cx="20" cy="7" r="6" class="' + cls("head") + '"/>' +
+      '<rect x="12" y="15" width="16" height="15" rx="2" class="' + cls("torso") + '"/>' +
+      '<rect x="13" y="31" width="14" height="7" rx="2" class="' + cls("waist") + '"/>' +
+      '<rect x="2"  y="16" width="8"  height="20" rx="3" class="' + cls("arm_l") + '"/>' +
+      '<rect x="30" y="16" width="8"  height="20" rx="3" class="' + cls("arm_r") + '"/>' +
+      '<rect x="13" y="40" width="6"  height="18" rx="2" class="' + cls("leg_l") + '"/>' +
+      '<rect x="21" y="40" width="6"  height="18" rx="2" class="' + cls("leg_r") + '"/>' +
+      '</svg>';
+  }
+
+  // 全体像モード：うっすらした全身の輪郭の中に、該当箇所だけ実物の絵を置く。
+  // 位置と形をひとつの絵で同時に伝えるので、対応を覚える必要がない。
+  function bodyHTML(part) {
+    var boxes = PART_BOX[part.key] || [];
+    var pieces = boxes.map(function (b, i) {
+      // 元絵は1本ぶんなので、対になる側は鏡像にする
+      var mirror = part.flip || (boxes.length === 2 && i === 1);
+      var st = "left:" + b.l + "%;top:" + b.t + "%;width:" + b.w + "%;height:" + b.h + "%";
+      return '<span class="piece" style="' + st + '">' +
+        '<img alt=""' + (mirror ? ' style="transform:scaleX(-1)"' : "") + '></span>';
+    }).join("");
+    return '<div class="body">' + silhouette(null, "ghost") + pieces + '</div>';
+  }
+
+  function render(el, hand, mode, widthPct, targetIdx) {
+    el.innerHTML = hand.map(function (c, idx) {
+      // 基準測定：識別を要さない課題。●の付いたカードを押すだけ。
+      // ここで出る時間が「読む＋動かす」の固定費で、カード設計とは無関係な床になる。
+      if (mode === "base") {
+        return '<div class="card" data-mode="base"' +
+          (idx === targetIdx ? ' data-basehit="1"' : "") +
+          ' style="--mfr:#9aa4aa;width:' + widthPct + '%"></div>';
+      }
+      return renderCard(c, mode, widthPct);
+    }).join("");
+
+    Array.prototype.forEach.call(el.querySelectorAll(".card"), function (card, i) {
+      if (!hand[i]) { return; }
+      Array.prototype.forEach.call(card.querySelectorAll("img"), function (img) {
+        loadInto(img, hand[i].part);
+      });
+    });
+  }
+
+  function renderCard(c, mode, widthPct) {
+    var flip = c.part.flip ? ' style="transform:scaleX(-1)"' : "";
+    return '<div class="card" data-mode="' + mode + '" style="--mfr:' + c.mfr +
+      ';width:' + widthPct + '%">' +
+      '<div class="mfr-tag"></div>' +
+      '<div class="art"><img alt=""' + flip + '></div>' +
+      silhouette(c.part.key) +
+      bodyHTML(c.part) +
+      '</div>';
+  }
+
+  function shuffle(a) {
+    var c = a.slice();
+    for (var i = c.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = c[i]; c[i] = c[j]; c[j] = t;
+    }
+    return c;
+  }
+
+  function byKey(k) {
+    var set = activeParts();
+    for (var i = 0; i < set.length; i++) {
+      if (set[i].key === k) { return set[i]; }
+    }
+    return set[0];
+  }
+
+  function deal() {
+    return shuffle(activeParts()).slice(0, HAND_SIZE).map(function (p) {
+      return { part: p, mfr: MFRS[Math.floor(Math.random() * MFRS.length)] };
+    });
+  }
+
+  function bindSeg(selector, onPick) {
+    var btns = Array.prototype.slice.call(document.querySelectorAll(selector));
+    btns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        btns.forEach(function (o) { o.setAttribute("aria-pressed", "false"); });
+        b.setAttribute("aria-pressed", "true");
+        onPick(b);
+      });
+    });
+  }
+
+  function now() {
+    return (window.performance && performance.now) ? performance.now() : Date.now();
+  }
+
+  var cardW = 15;
+
+  /* ---------- 02 プレビュー ---------- */
+
+  // 7種のときは最難関の右腕・左腕を必ず並べる。5種にはその組み合わせが存在しない。
+  function previewHand() {
+    var keys = (partSet === "7")
+      ? ["arm_r", "arm_l", "waist", "leg_l"]
+      : ["arm", "leg", "waist", "head"];
+    return keys.map(function (k, i) {
+      return { part: byKey(k), mfr: MFRS[i] };
+    });
+  }
+
+  var lineMain = document.getElementById("line-main");
+  var previewMode = "both";
+  function drawPreview() { render(lineMain, previewHand(), previewMode, cardW); }
+
+  bindSeg("[data-mode]", function (b) {
+    previewMode = b.getAttribute("data-mode");
+    drawPreview();
+  });
+
+  var sz = document.getElementById("sz");
+  var szout = document.getElementById("szout");
+  sz.addEventListener("input", function () {
+    cardW = parseFloat(sz.value);
+    szout.textContent = cardW.toFixed(1) + " %";
+    drawPreview();
+  });
+
+  // アイコンの大きさは CSS 変数で全カードに一括で効かせる（テスト・実機モードも含む）。
+  var silsz = document.getElementById("silsz");
+  var silout = document.getElementById("silout");
+  function applySil() {
+    var v = parseInt(silsz.value, 10);
+    silout.textContent = v + " %";
+    document.documentElement.style.setProperty("--silw", v + "%");
+  }
+  silsz.addEventListener("input", applySil);
+  applySil();
+
+  drawPreview();
+
+  /* ---------- 探索テスト本体 ---------- */
+
+  function createSearchTest(cfg) {
+    var trials = 0, misses = 0, total = 0, best = Infinity;
+    var target = null, startedAt = 0, live = false, pending = null;
+
+    function nextTrial() {
+      var hand = deal();
+      var idx = Math.floor(Math.random() * hand.length);
+      target = hand[idx].part;
+      var mode = cfg.getMode();
+
+      render(cfg.lineEl, hand, mode, cardW, idx);
+      cfg.lineEl.classList.add("live");
+      cfg.setTarget(target, trials + 1, mode);
+
+      Array.prototype.forEach.call(cfg.lineEl.querySelectorAll(".card"), function (card, i) {
+        card.addEventListener("click", function () {
+          if (!live) { return; }
+          // 基準測定は位置で判定する（同じ部位が2枚並ぶことがあるため）
+          grade(mode === "base" ? { key: (i === idx ? "__t" : "__x") } : hand[i].part, card);
+        });
+      });
+
+      live = true;
+      startedAt = now();
+    }
+
+    function grade(picked, card) {
+      var wantKey = (cfg.getMode() === "base") ? "__t" : target.key;
+      if (picked.key !== wantKey) {
+        misses++;
+        card.classList.add("miss");
+        cfg.onProgress(stats());
+        return;   // 正解を押すまで続行。時間は測り続ける。
+      }
+
+      live = false;
+      card.classList.add("hit");
+      trials++;
+      var ms = now() - startedAt;
+      total += ms;
+      if (ms < best) { best = ms; }
+
+      cfg.onProgress(stats());
+
+      if (trials >= TRIALS) {
+        cfg.lineEl.classList.remove("live");
+        cfg.onDone(stats());
+      } else {
+        pending = setTimeout(nextTrial, 450);
+      }
+    }
+
+    function stats() {
+      var avg = trials ? Math.round(total / trials) : 0;
+      var mode = cfg.getMode();
+      var verdict, pass = false;
+
+      if (trials < TRIALS) {
+        verdict = "残り " + (TRIALS - trials) + " 回";
+      } else if (mode === "base") {
+        baselineMs = avg;
+        verdict = "基準値を記録した（" + avg + "ms）。" +
+          "これは「指示を読む＋手を動かす」だけにかかる時間で、カードの設計とは無関係な固定費。" +
+          "以降のモードは、この値を引いた差で評価する。";
+        pass = true;
+      } else if (baselineMs === null) {
+        verdict = "平均 " + avg + "ms。" +
+          "ただしこの数字には「指示を読む＋手を動かす」固定費が含まれている。" +
+          "先に「基準」モードを1セット走らせると、カード設計だけのコストが分かる。";
+      } else {
+        var cost = avg - baselineMs;
+        var head = "識別コスト " + cost + "ms（実測 " + avg + " − 基準 " + baselineMs + "）";
+        if (cost <= COST_GOAL && misses === 0) {
+          verdict = head + " — 合格。カードを見分けるのに使っている時間は十分短い。";
+          pass = true;
+        } else if (cost <= COST_GOAL) {
+          verdict = head + " — 速いが誤クリック " + misses + " 回。判別が曖昧な組み合わせが残っている。";
+        } else {
+          verdict = head + " — 目標 " + COST_GOAL + "ms を超過。まだ見分けに時間がかかっている。";
+        }
+      }
+
+      return {
+        trials: trials, misses: misses, avg: avg,
+        best: (best === Infinity ? 0 : Math.round(best)),
+        done: trials >= TRIALS,
+        pass: pass,
+        verdict: verdict
+      };
+    }
+
+    function reset() {
+      clearTimeout(pending); pending = null;
+      trials = 0; misses = 0; total = 0; best = Infinity; live = false;
+      cfg.onProgress(stats());
+      nextTrial();
+    }
+
+    // 実行中にモードを切り替えると、前のモードの試行が混ざって計測が壊れる。
+    // 途中でやめさせて、スタートを押し直させる。
+    function cancel() {
+      clearTimeout(pending); pending = null;
+      live = false; target = null;
+      cfg.lineEl.classList.remove("live");
+    }
+
+    return { reset: reset, cancel: cancel };
+  }
+
+  /* ---------- 03 PC用 ---------- */
+
+  var testMode = "both";
+
+  function abortRun(msg) {
+    pcTest.cancel();
+    document.getElementById("target").textContent = msg;
+    startBtn.disabled = false;
+    startBtn.textContent = "スタート";
+  }
+
+  bindSeg("[data-tmode]", function (b) {
+    testMode = b.getAttribute("data-tmode");
+    abortRun("モードを変えた。スタートを押して測り直す");
+  });
+
+  bindSeg("[data-pset]", function (b) {
+    partSet = b.getAttribute("data-pset");
+    drawPreview();   // プレビューにも即反映
+    abortRun("部位の数を変えた。スタートを押して測り直す");
+  });
+
+  var targetEl = document.getElementById("target");
+  var startBtn = document.getElementById("start");
+
+  var pcTest = createSearchTest({
+    lineEl: document.getElementById("line-test"),
+    getMode: function () { return testMode; },
+    setTarget: function (part, n, mode) {
+      // 目標も人型の絵で示す。文字を読ませると、本番に無い作業を測ってしまう。
+      if (mode === "base") {
+        targetEl.innerHTML = n + " / " + TRIALS + ' <span class="t-dot"></span> のカードを押せ';
+        return;
+      }
+      targetEl.innerHTML = n + " / " + TRIALS +
+        '<span class="t-fig">' + silhouette(part.key, "target-sil") + "</span>" +
+        "この箇所のカードを押せ";
+    },
+    onProgress: function (s) {
+      document.getElementById("s-try").textContent = s.trials;
+      document.getElementById("s-miss").textContent = s.misses;
+      document.getElementById("s-avg").textContent = s.trials ? s.avg + "ms" : "—";
+      document.getElementById("s-best").textContent = s.best ? s.best + "ms" : "—";
+      var v = document.getElementById("verdict");
+      v.textContent = s.verdict;
+      v.className = "verdict" + (s.done ? (s.pass ? " ok" : " ng") : "");
+    },
+    onDone: function () {
+      targetEl.textContent = "終了。モードを変えてもう一度";
+      startBtn.textContent = "もう一度";
+      startBtn.disabled = false;
+    }
+  });
+
+  startBtn.addEventListener("click", function () {
+    startBtn.disabled = true;
+    pcTest.reset();
+  });
+
+  /* ---------- 01 実機モード ---------- */
+
+  var stageEl = document.getElementById("stage");
+  var stageTargetEl = document.getElementById("stage-target");
+  var stageStat = document.getElementById("stage-stat");
+  var stageMode = "both";
+
+  bindSeg("[data-smode]", function (b) {
+    stageMode = b.getAttribute("data-smode");
+    stageTest.cancel();
+    stageTargetEl.textContent = "モードを変えた。スタートを押す";
+  });
+
+  var stageTest = createSearchTest({
+    lineEl: document.getElementById("stage-line"),
+    getMode: function () { return stageMode; },
+    setTarget: function (part, n, mode) {
+      if (mode === "base") {
+        stageTargetEl.innerHTML = n + " / " + TRIALS + ' <span class="t-dot"></span> を押せ';
+        return;
+      }
+      stageTargetEl.innerHTML = n + " / " + TRIALS +
+        '<span class="t-fig">' + silhouette(part.key, "target-sil") + "</span>";
+    },
+    onProgress: function (s) {
+      stageStat.textContent = s.trials + "/" + TRIALS + "  平均 " + (s.trials ? s.avg + "ms" : "—") +
+        "  誤 " + s.misses;
+    },
+    onDone: function (s) {
+      stageTargetEl.innerHTML = (s.pass ? "合格" : "不合格") + " &nbsp; 平均 <b>" + s.avg + "ms</b>";
+    }
+  });
+
+  document.getElementById("stage-start").addEventListener("click", function () {
+    stageTest.reset();
+  });
+
+  document.getElementById("open-stage").addEventListener("click", function () {
+    stageEl.classList.add("on");
+    stageEl.setAttribute("aria-hidden", "false");
+    document.body.classList.add("locked");
+    render(document.getElementById("stage-line"), previewHand(), stageMode, cardW);
+    stageTargetEl.textContent = "スタートを押す";
+    try {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+    } catch (e) { /* 非対応環境では固定オーバーレイのまま動く */ }
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock("landscape").catch(function () {});
+      }
+    } catch (e) { /* iOS 等は非対応 */ }
+  });
+
+  document.getElementById("close-stage").addEventListener("click", function () {
+    stageEl.classList.remove("on");
+    stageEl.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("locked");
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(function () {});
+      }
+    } catch (e) { /* noop */ }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && stageEl.classList.contains("on")) {
+      document.getElementById("close-stage").click();
+    }
+  });
+})();
+</script>

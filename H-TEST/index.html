@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Higgsfield MCP 機能調査レポート</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <h1>Higgsfield MCP 機能調査レポート</h1>
+    <div class="meta">
+      <span>調査日: 2026-09-07</span>
+      <span>目的: 新規ゲームプロジェクトの制作基盤の見極め</span>
+      <span>コストは全て実測（プリフライト・課金なし）</span>
+    </div>
+  </div>
+
+  <!-- 1. 接続状況 -->
+  <section>
+    <h2>接続状況<span class="en">CONNECTION</span></h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="label">MCP接続</div>
+        <div class="value sm" style="color:var(--ok)">正常</div>
+      </div>
+      <div class="stat">
+        <div class="label">プラン</div>
+        <div class="value sm">Ultra</div>
+      </div>
+      <div class="stat">
+        <div class="label">残クレジット</div>
+        <div class="value">1,761<span class="unit">cr</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">ワークスペース</div>
+        <div class="value">1<span class="unit">private</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 3D -->
+  <section>
+    <h2>3Dモデル生成<span class="en">3D ASSETS</span></h2>
+    <p class="lead">出力は全て <span class="mono">GLB</span>。ポリ数（100〜300,000）とトポロジ（quad / triangle）を指定できるため、ゲーム用のローポリ運用が可能。</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>用途</th><th>モデルID</th><th style="text-align:right">実測コスト</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>テキスト → 3D（ローポリ+テクスチャ）</td>
+            <td class="model">meshy_v6_text_to_3d</td>
+            <td class="cost"><b>25</b><span class="cr">cr</span></td>
+          </tr>
+          <tr>
+            <td>画像 → 3D（ローポリ+テクスチャ）</td>
+            <td class="model">meshy_v7_image_to_3d</td>
+            <td class="cost"><b>38</b><span class="cr">cr</span></td>
+          </tr>
+          <tr>
+            <td>既存GLBにリグ＋アニメ付与</td>
+            <td class="model">3d_rigging</td>
+            <td class="cost dash">GLBのURL渡し</td>
+          </tr>
+          <tr>
+            <td>既存GLBのリメッシュ（ポリ数調整）</td>
+            <td class="model">meshy_v5_remesh</td>
+            <td class="cost dash">単独実行可</td>
+          </tr>
+          <tr>
+            <td>既存GLBのリテクスチャ</td>
+            <td class="model">meshy_v5_retexture</td>
+            <td class="cost dash">単独実行可</td>
+          </tr>
+          <tr>
+            <td>その他の選択肢</td>
+            <td class="model">tripo_h3_1 / hunyuan3d_v3_1 / sam_3_3d / multi_image_to_3d</td>
+            <td class="cost dash">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="spec">
+      <li><strong class="k">リグ付きアニメーションが678クリップ</strong>から選択可能（idle / walk / run / jump / attack / dance など）。GIFプレビュー付きで検索できる</li>
+      <li>PBRマップ（メタリック・ラフネス・ノーマル）生成、<strong class="k">A/Tポーズ指定</strong>に対応。リグを綺麗に入れるならポーズ指定が有効</li>
+      <li>多視点（2〜4枚）入力で形状精度を上げられる</li>
+    </ul>
+  </section>
+
+  <!-- 3. スプライト -->
+  <section>
+    <h2>2Dスプライト生成<span class="en">SPRITE SHEET</span></h2>
+    <p class="lead">今回の調査で最も収穫だった機能。ゲーム用途に完全特化している。</p>
+    <div class="hl">
+      <div class="hl-title">
+        <span class="mono">autosprite</span>
+        <span class="badge new">未検証</span>
+        <span style="font-weight:400;color:var(--ink-sub);font-size:13px">キャラ画像1枚 → スプライトシートPNG ＋ アトラス</span>
+      </div>
+      <ul class="spec">
+        <li>基本プリセット：<strong class="k">idle / walk / run / attack / jump / custom</strong></li>
+        <li><strong class="k">アイソメトリック8方向</strong>に対応（up / northeast / right / southeast / down × idle・walk・run・jump）</li>
+        <li>フレーム数 <strong class="k">2〜64</strong>、フレームサイズ <strong class="k">32〜512px</strong></li>
+        <li><strong class="k">背景除去が生成に内蔵</strong>（default / ultra の2モード）。切り抜き工程が不要</li>
+        <li>効果音の同時生成オプションあり。品質は turbo / pro / max の3段階</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4. 音 -->
+  <section>
+    <h2>サウンド<span class="en">AUDIO</span></h2>
+    <p class="lead">Higgsfield 側に「ゲームパイプライン専用」の音響モデル枠が用意されている。</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>用途</th><th>モデルID</th><th style="text-align:right">実測コスト</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>効果音（2秒）</td>
+            <td class="model">mirelo_text_to_audio</td>
+            <td class="cost"><b>0.5</b><span class="cr">cr</span></td>
+          </tr>
+          <tr>
+            <td>BGM（30秒）</td>
+            <td class="model">sonilo_music</td>
+            <td class="cost"><b>1.88</b><span class="cr">cr</span></td>
+          </tr>
+          <tr>
+            <td>ボイス（日本語 Asuka / Satoshi 他）</td>
+            <td class="model">inworld_text_to_speech</td>
+            <td class="cost"><b>2</b><span class="cr">cr</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="spec">
+      <li>この3モデルはツール定義上<strong class="k">「ゲーム生成パイプライン専用」</strong>と明記されており、単独のBGM/SFX案件には使えない建て付けになっている</li>
+      <li>SEは秒数指定なので、<strong class="k">1本あたり実質0.5cr</strong>。バリエーション量産が現実的なコスト</li>
+    </ul>
+  </section>
+
+  <!-- 5. 2Dアート -->
+  <section>
+    <h2>2Dアート・UI素材<span class="en">2D ART</span></h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>用途</th><th>モデルID</th><th style="text-align:right">実測コスト</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>高品質イラスト（2K）</td>
+            <td class="model">nano_banana_pro</td>
+            <td class="cost"><b>2</b><span class="cr">cr</span></td>
+          </tr>
+          <tr>
+            <td>2K ＋ 背景除去（1発で透過PNG）</td>
+            <td class="model">seedream_v5_pro</td>
+            <td class="cost"><b>3</b><span class="cr">cr</span></td>
+          </tr>
+          <tr>
+            <td>アイコン・ロゴのベクター出力</td>
+            <td class="model">recraft_v4_1 (vector)</td>
+            <td class="cost dash">UI素材向き</td>
+          </tr>
+          <tr>
+            <td>背景除去 / アウトペイント / 超解像</td>
+            <td class="model">background_remover / outpaint / topaz</td>
+            <td class="cost dash">個別ツールで独立実行</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="spec">
+      <li>ベクターモードは<strong class="k">パレット色を #RRGGBB で指定可能</strong>。UIのトンマナ統一に使える</li>
+    </ul>
+  </section>
+
+  <!-- 6. その他 -->
+  <section>
+    <h2>その他の大型機能<span class="en">OTHERS</span></h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>機能</th><th>内容</th><th>状態</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">3D Jutsu</span><br>シーンビルダー</td>
+            <td>Blender Python を直接実行してシーンを組み、GLB / .blend で書き出せる。GLBアセットカタログの検索も可能</td>
+            <td><span class="badge new">未検証</span><br><span style="font-size:12px;color:var(--ink-mute)">プロジェクト0件</span></td>
+          </tr>
+          <tr>
+            <td><span class="mono">create_website</span><br>type: "game"</td>
+            <td>リアルタイム・マルチプレイのルーム機能を持つブラウザゲームを、実装からデプロイまで一括で生成</td>
+            <td><span class="badge new">未検証</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 7. トゥーンレンダリング -->
+  <section>
+    <h2>トゥーンレンダリングは可能か<span class="en">TOON / CEL SHADING</span></h2>
+    <p class="lead">「トゥーン風の見た目」と「トゥーンレンダリング（描画手法）」は別物なので、3層に分けて判定する。</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>やりたいこと</th><th>可否</th><th>実態</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>2Dのトゥーン絵</td>
+            <td><span class="badge ok">可能</span></td>
+            <td>プロンプトで指定するだけ。<strong class="k">トゥーン専用モデルは存在しない</strong>が、どの画像モデルでも出る</td>
+          </tr>
+          <tr>
+            <td>トゥーン調テクスチャの3Dモデル</td>
+            <td><span class="badge warn">条件付き</span></td>
+            <td><span class="mono">texture_prompt</span> でセル調に寄せられるが、<strong class="k">陰影がテクスチャに焼き込まれる</strong></td>
+          </tr>
+          <tr>
+            <td>本物のトゥーンレンダリング</td>
+            <td><span class="badge ng">不可</span></td>
+            <td>光源に反応して陰が2値で切り替わる描画。<strong class="k">シェーダー＝Unity側の領域</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px;color:var(--ink-sub);margin:12px 0 0">カタログを検索した結果、<strong class="k">トゥーン／セルシェーディング専用の3Dモデルは存在しない</strong>。3D生成は全てPBR（物理ベース）前提。</p>
+
+    <h3>Blender側では出来る。ただし持ち出せない</h3>
+    <p style="font-size:13.5px;margin:0 0 4px">3D Jutsu は Blender 5.2 が動くため、Toon BSDF や Freestyle のアウトラインでトゥーンレンダリング自体は可能。ただしツール仕様に決定的な制約が明記されている。</p>
+    <blockquote class="spec-quote">
+      <p>プロシージャルシェーダーとワールドライティングは GLB に確実には引き継がれない</p>
+      <p>コミットされたシーンは Eevee と Khronos PBR Neutral で確定される</p>
+    </blockquote>
+    <ul class="spec">
+      <li><strong class="k">Blenderで組んだトゥーンシェーダーは、GLBに書き出した時点で消える。</strong>使い道は次の2つに限られる</li>
+      <li><strong class="k">レンダリング画像・動画としての書き出し</strong>（PNG/JPEG/MP4を最大8枚 publish 可能）→ カードイラスト、演出ムービー、資料用の絵には使える</li>
+      <li><strong class="k">.blendファイルのダウンロード</strong>（<span class="mono">get_blend</span>）→ トゥーンマテリアル込みで手元に持ってきて自分で調整する</li>
+    </ul>
+
+    <h3>Unityでやる場合の手順と落とし穴</h3>
+    <div class="flow">
+      <div class="node hf">
+        <div class="n-step">STEP 1</div>
+        <div class="n-title">メッシュだけ生成</div>
+        <div class="n-desc">Higgsfield で形状を出す</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node unity">
+        <div class="n-step">STEP 2</div>
+        <div class="n-title">Unityへ取り込み</div>
+        <div class="n-desc">glTFast / UniGLTF</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node unity">
+        <div class="n-step">STEP 3</div>
+        <div class="n-title">シェーダー差し替え</div>
+        <div class="n-desc">Unity Toon Shader<br><span class="mono">com.unity.toonshader</span></div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node unity">
+        <div class="n-step">STEP 4</div>
+        <div class="n-title">輪郭線を足す</div>
+        <div class="n-desc">Renderer Feature / 背面法</div>
+      </div>
+    </div>
+    <div class="notes">
+      <ul class="spec">
+        <li><strong class="k">最大の落とし穴：陰影の二重化。</strong> AI生成テクスチャは陰影とAOが最初から絵に描き込まれているため、上からトゥーンシェーダーを当てると陰が二重になって濁る</li>
+        <li>対策1：<span class="mono">should_texture: false</span> で<strong class="k">白いメッシュだけ</strong>出し、Unity側で単色＋トゥーンシェーダー（原色メカとは特に相性が良い）</li>
+        <li>対策2：テクスチャを使うなら <span class="mono">texture_prompt</span> に「flat cel-shaded colors, no shading, no ambient occlusion, uniform lighting」を明示して陰影を殺す</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 8. キャラメイク基盤 -->
+  <section>
+    <h2>キャラメイク基盤は作れるか<span class="en">CHARACTER CUSTOMIZATION</span></h2>
+    <p class="lead">MMORPG的に、身長・体型・髪型・顔・服を後から差し替えられる土台を Higgsfield × Unity で作れるか。</p>
+
+    <div class="verdict go">
+      <div class="v-label">結論 ／ 用途の確定により更新</div>
+      <div class="v-text">自作ツールが「開発用・非公開」であれば、VRoid素材を使って作ってよい。素材調達の問題は発生しない。</div>
+      <div class="v-sub">VRoidガイドラインの<strong class="k">「ただし、あなたのみが個人的に使用するために制作する場合はこの限りではありません」</strong>に該当するため。そこで作ったキャラをゲームに焼き込んで配布・販売することも、元々明示的に許可されている。<strong class="k">ツール側は例外条項、出力キャラ側は商用利用可で、両方ともクリアする。</strong></div>
+    </div>
+    <div class="verdict">
+      <div class="v-label">ただし前提として</div>
+      <div class="v-text">Higgsfield 単体でキャラメイク基盤を作ることは、依然として不可能。</div>
+      <div class="v-sub">「生成の単位」が根本的に合わないため。Higgsfieldの3D生成は<strong class="k">「画像1枚 → 完結した1個のメッシュ」</strong>であり、キャラメイクが要求する「共通スケルトンに乗った分割パーツ群」とは設計思想が違う。以下の技術的分析は、自前でベースメッシュを用意する場合に必要となる。</div>
+    </div>
+
+    <h3>キャラメイクに必要な技術要素と、その調達可否</h3>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>実現したい操作</th><th>技術的に必要なもの</th><th>Higgsfieldで出せるか</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>身長・体型のスライダー</td>
+            <td>BlendShape（モーフターゲット）／ボーンスケール</td>
+            <td><span class="badge ng">不可</span> 生成機能そのものが無い</td>
+          </tr>
+          <tr>
+            <td>顔立ちの変更</td>
+            <td>顔のBlendShape群</td>
+            <td><span class="badge ng">不可</span> 同上</td>
+          </tr>
+          <tr>
+            <td>髪型・服の着せ替え</td>
+            <td>パーツ分割メッシュ ＋ <strong class="k">共通スケルトン</strong></td>
+            <td><span class="badge ng">不可</span> 生成ごとに独立した骨が作られ、<strong class="k">キャラと服で骨が一致しない</strong></td>
+          </tr>
+          <tr>
+            <td>色・柄の差し替え</td>
+            <td>共有UVレイアウト／テクスチャアトラス</td>
+            <td><span class="badge warn">条件付き</span> UVが毎回変わるためアトラス共有が困難</td>
+          </tr>
+          <tr>
+            <td>キャラ案の量産・決定</td>
+            <td>大量のコンセプトアート</td>
+            <td><span class="badge ok">得意</span> 2cr/枚。<strong class="k">ここが本来の主戦場</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>唯一の活路：3D Jutsu の Blender Python</h3>
+    <p style="font-size:13.5px;margin:0 0 6px">Blender が丸ごと動くということは、<strong class="k">プログラムでメッシュを分割し、リグを統一し、BlendShapeを付与できる</strong>ということ。しかも glTF/GLB は<strong class="k">モーフターゲットを正式にサポートしている</strong>ため、BlendShape は理論上 Unity まで運べる。</p>
+    <ul class="spec">
+      <li><span class="mono">bpy.ops.object.shape_key_add()</span> — BlendShape の追加（体型・顔スライダーの土台）</li>
+      <li>アーマチュアモディファイアで<strong class="k">複数メッシュを1つの骨に共有バインド</strong>（着せ替えの土台）</li>
+      <li>メッシュの分離・頂点グループ操作でパーツ化</li>
+      <li>成果物は <span class="mono">get_glb</span> と <span class="mono">get_blend</span> の両方で取り出せる</li>
+    </ul>
+    <div class="notes">
+      <ul class="spec">
+        <li><strong class="k">未検証の要点は2つだけ。</strong>ここが通るかで方針が決まる</li>
+        <li>① BlendShape（shape_key）が GLB に乗って Unity まで届くか → 通れば<strong class="k">体型スライダーが実現</strong></li>
+        <li>② 共通アーマチュアへの複数メッシュのバインドが GLB を通るか → 通れば<strong class="k">着せ替えが実現</strong></li>
+      </ul>
+    </div>
+
+    <h3>現実的な3ルート</h3>
+    <div class="routes">
+      <div class="route best">
+        <div class="r-head">
+          <span class="r-name">ルートA：VRoid Studio</span>
+          <span class="badge ok">推奨</span>
+        </div>
+        <div class="r-body">
+          アニメ調キャラなら最短。<b>キャラメイク機能そのものが製品</b>であり、体型・顔・髪・服のパラメータが最初から揃っている。
+          <dl>
+            <dt>Unity連携</dt>
+            <dd>VRM出力 → UniVRM で取り込み</dd>
+            <dt>トゥーン</dt>
+            <dd><b>MToonシェーダーを標準搭載</b>。前セクションのトゥーン問題も同時に解決する</dd>
+            <dt>費用</dt>
+            <dd><b>完全無料</b>（本体に課金要素なし）</dd>
+            <dt>ライセンス</dt>
+            <dd><b>用途による重要な分岐あり。</b>次セクションで詳述</dd>
+            <dt>Higgsfieldの役割</dt>
+            <dd>コンセプトアートの量産と決定稿づくり</dd>
+          </dl>
+        </div>
+      </div>
+      <div class="route">
+        <div class="r-head">
+          <span class="r-name">ルートB：既製モジュラーアセット</span>
+        </div>
+        <div class="r-body">
+          Asset Store のモジュラーキャラクタ系アセットを土台にする。共通リグとパーツ分割が最初から保証されている。
+          <dl>
+            <dt>長所</dt>
+            <dd>着せ替えの仕組みが完成済み。実装が最も早い</dd>
+            <dt>短所</dt>
+            <dd>見た目がそのアセットの作風に縛られる</dd>
+            <dt>Higgsfieldの役割</dt>
+            <dd>テクスチャ生成による差別化</dd>
+          </dl>
+        </div>
+      </div>
+      <div class="route">
+        <div class="r-head">
+          <span class="r-name">ルートC：3D Jutsu で自作</span>
+          <span class="badge new">要検証</span>
+        </div>
+        <div class="r-body">
+          Blender Python でベースメッシュを整備し、共通リグとBlendShapeを自前で構築する。
+          <dl>
+            <dt>長所</dt>
+            <dd>見た目の自由度が最も高い。全て自前で制御できる</dd>
+            <dt>短所</dt>
+            <dd>工数が最大。上記2点の検証結果次第では成立しない</dd>
+            <dt>Higgsfieldの役割</dt>
+            <dd>パーツ形状の生成とテクスチャ生成</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict go" style="margin-top:16px">
+      <div class="v-label">この件での Higgsfield の正しい使い方</div>
+      <div class="v-text">キャラメイク基盤そのものではなく、「主人公をこのキャラで行こう」を決めるための案の量産に使う。</div>
+      <div class="v-sub">1枚2crなので、<strong class="k">100案出しても200cr</strong>。決定稿が固まってから、それをベースメッシュのテクスチャや造形の参照に落とし込むのが最も費用対効果が高い。</div>
+    </div>
+  </section>
+
+  <!-- 9. VRoid ライセンス -->
+  <section>
+    <h2>VRoid Studio の費用とライセンス<span class="en">VROID LICENSE</span></h2>
+    <p class="lead">公式ガイドライン（2023年12月21日改定）で確認した内容。ルートAを採る場合の判断材料。</p>
+
+    <div class="stats" style="margin-bottom:14px">
+      <div class="stat">
+        <div class="label">ソフト本体の費用</div>
+        <div class="value sm" style="color:var(--ok)">完全無料</div>
+      </div>
+      <div class="stat">
+        <div class="label">課金要素</div>
+        <div class="value sm">なし</div>
+      </div>
+      <div class="stat">
+        <div class="label">出力モデルの権利</div>
+        <div class="value sm">利用者に帰属</div>
+      </div>
+      <div class="stat">
+        <div class="label">商用利用</div>
+        <div class="value sm" style="color:var(--ok)">可能</div>
+      </div>
+    </div>
+
+    <p style="font-size:13.5px;margin:0 0 6px">ガイドラインには利用可能な例として、<strong class="k">ゲーム・アプリケーション・ソフトウェアの制作とそれによる収益</strong>が明示されている。また出力データを VRoid Studio 以外のソフトで編集して利用することも認められており、<strong class="k">Unityへの取り込みは想定された使い方</strong>。</p>
+
+    <h3>ただし用途によって可否が分かれる</h3>
+    <blockquote class="spec-quote">
+      <p><strong>出力物を利用したキャラメイクツール制作を行う場合</strong></p>
+      <p>VRoid Studioで制作した出力物を利用して、メッシュの変形およびメッシュまたはテクスチャを組み合わせることによるアバター、アイテム、その他の3Dモデルの制作機能や、出力機能を有するアプリケーションを制作することは禁止しています。（中略）ただし、あなたのみが個人的に使用するために制作する場合はこの限りではありません。</p>
+    </blockquote>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>やること</th><th>可否</th><th>備考</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>VRoidで作ったキャラを<strong class="k">完成品として</strong>ゲームに入れ、配布・販売する</td>
+            <td><span class="badge ok">可能</span></td>
+            <td>ガイドラインに明示。<strong class="k">これが本命の使い方</strong></td>
+          </tr>
+          <tr>
+            <td>VRoid出力物を素材に、<strong class="k">キャラメイク機能を持つアプリ</strong>を作って配布する</td>
+            <td><span class="badge ng">禁止</span></td>
+            <td>pixivから別途ライセンスが必要</td>
+          </tr>
+          <tr>
+            <td>同じものを<strong class="k">自分だけが個人的に使う</strong></td>
+            <td><span class="badge ok">可能</span></td>
+            <td>明文化された例外。開発用の内部ツールはここに該当</td>
+          </tr>
+          <tr style="background:#f2f8f4">
+            <td><strong class="k">本件の該当箇所。</strong>開発用の自作キャラメイクツール（<strong class="k">非公開</strong>）でキャラを作り、それをゲームに焼き込んで配布・販売する</td>
+            <td><span class="badge ok">可能</span></td>
+            <td>ツールは例外条項に該当し、出力キャラは商用利用可。<strong class="k">両方クリアする</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>BOOTH等で購入した第三者素材の扱い</h3>
+    <p style="font-size:13.5px;margin:0 0 6px">VRoid側のガイドラインは第三者素材について「そのデータのライセンスや利用条件に適切に従うこと」としており、<strong class="k">判断は各出品者の規約に委ねられている</strong>。実態として規約は出品者ごとにバラバラで、購入額で完結するとは限らない。</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>よくある規約パターン</th><th>内容</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>商用・ゲーム組み込み可</td><td>ただし<strong class="k">データを容易に抽出できないよう保護すること</strong>を条件とするものが多い</td></tr>
+          <tr><td>再配布禁止</td><td>非常に多い。VRoid Hubへの投稿すら禁止の場合がある</td></tr>
+          <tr><td>商用ゲーム開発・販売を禁止</td><td>原則禁止としている出品者も実在する</td></tr>
+          <tr><td>事前連絡・許諾が必要</td><td>個人配信を超える商用利用はDMでの確認を求める形式</td></tr>
+          <tr><td>クレジット表記必須</td><td>商用・ゲーム利用時に明記を要求</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="notes">
+      <ul class="spec">
+        <li><strong class="k">最大の争点は「ゲームに組み込む＝モデルデータを配布する」ことに当たる点。</strong>多くの規約が再配布を禁止しているため、購入しただけでは足りない</li>
+        <li>購入前に確認すべき3点 — ① 商用利用可か　② <strong class="k">ゲーム/アプリへの組み込みが明示的に許可されているか</strong>　③ 再配布の扱い（アプリ内保護を条件に可、など）</li>
+        <li>方針：主人公など<strong class="k">中核キャラはVRoid標準アイテム＋自作テクスチャ</strong>で固め、BOOTH素材はサブキャラや検証用に留める。権利確認のコストとリスクを負わずに済む</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 10. MCP連携 -->
+  <section>
+    <h2>MCP連携はどこまで可能か<span class="en">MCP INTEGRATION</span></h2>
+    <p class="lead">Higgsfield → VRoid → Unity のパイプラインを、どこまでAIから駆動できるか。</p>
+
+    <div class="verdict go">
+      <div class="v-label">結論</div>
+      <div class="v-text">VRoid Studio だけは直結できない。だが前後（Higgsfield と Unity）は両方MCPで繋がる。</div>
+      <div class="v-sub">VRoid Studio は API も CLI も持たないGUIアプリのため、外部から操作する公式手段が存在しない。一方 <strong class="k">Unityには2026年6月に公式MCPサーバーが追加された</strong>ため、パイプラインの出口側は完全に自動化できる。</div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>対象</th><th>MCP連携</th><th>実態</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Higgsfield</td>
+            <td><span class="badge ok">接続済</span></td>
+            <td>本レポートの通り。生成側は既に稼働中</td>
+          </tr>
+          <tr>
+            <td><strong class="k">VRoid Studio 本体</strong></td>
+            <td><span class="badge ng">不可</span></td>
+            <td><strong class="k">API・CLI・公式プラグイン機構のいずれも無い</strong>。非公式拡張（VRoidXYTool）は存在するが外部制御用ではない</td>
+          </tr>
+          <tr>
+            <td><strong class="k">Unity Editor</strong></td>
+            <td><span class="badge ok">公式対応</span></td>
+            <td><strong class="k">2026年6月にUnity公式MCPサーバーが追加。</strong><span class="mono">unity mcp configure claude-code</span> で接続。シーン検査、コンソール読み取り、スクリプト編集、Editorアクション実行が可能</td>
+          </tr>
+          <tr>
+            <td>VRMファイル</td>
+            <td><span class="badge warn">間接的に可</span></td>
+            <td>VRMはglTFベースの公開仕様。<strong class="k">Blender用VRMアドオンやPythonスクリプトで機械的に操作できる</strong>（VRM4U / VReducer 等の前例あり）</td>
+          </tr>
+          <tr>
+            <td>VRoid Hub</td>
+            <td><span class="badge warn">API有り</span></td>
+            <td>OAuth 2.0 と開発者登録が必要。Unity/UE向けSDKも提供。<strong class="k">モデルの取得用</strong>であり、キャラメイクの自動化用ではない</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>成立するパイプライン</h3>
+    <div class="flow">
+      <div class="node hf">
+        <div class="n-step">MCP 自動</div>
+        <div class="n-title">Higgsfield</div>
+        <div class="n-desc">コンセプト案・テクスチャの生成</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node">
+        <div class="n-step">手作業</div>
+        <div class="n-title">VRoid Studio</div>
+        <div class="n-desc">キャラメイク。<br>テクスチャの読込・書出は対応</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node">
+        <div class="n-step">半自動</div>
+        <div class="n-title">VRM出力</div>
+        <div class="n-desc">Blenderアドオン等で<br>機械的な加工が可能</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node unity">
+        <div class="n-step">MCP 自動</div>
+        <div class="n-title">Unity</div>
+        <div class="n-desc">公式MCPで<br>シーン構築まで駆動</div>
+      </div>
+    </div>
+    <ul class="spec">
+      <li><strong class="k">人手が残るのはVRoid Studioの1工程だけ。</strong>しかもそこは「キャラの造形を決める」という創造的判断が要る部分であり、本来人間が担うべき箇所と一致している</li>
+      <li>VRoid Studio は<strong class="k">テクスチャのインポート／エクスポートに対応している</strong>ため、Higgsfieldで生成したテクスチャを持ち込む、あるいは書き出したテクスチャをHiggsfieldで加工して戻す往復は成立する（操作は手動）</li>
+      <li>Unity公式MCPのほか、コミュニティ製の実装も複数存在する（CoplayDev/unity-mcp 他）。Unity 2021.3 LTS 〜 Unity 6 に対応</li>
+    </ul>
+  </section>
+
+  <!-- 11. 実績 -->
+  <section>
+    <h2>既存プロジェクトでの実績<span class="en">TRACK RECORD</span></h2>
+    <p class="lead">「ロボ・スピード」で既にパイプラインが通っている部分と、手つかずの部分。</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>領域</th><th>証跡</th><th>状態</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>画像 → 3D → リグ付け</td>
+            <td class="model">docs/mecha/3d/ h6_red.glb → h6_red_rig.glb → rig2</td>
+            <td><span class="badge ok">通過済</span></td>
+          </tr>
+          <tr>
+            <td>効果音・BGM生成</td>
+            <td class="model">docs/audio/ se_hit_b〜e, se_kill_b〜e, bgm_valkyrie.wav</td>
+            <td><span class="badge ok">通過済</span></td>
+          </tr>
+          <tr>
+            <td>パーツ2Dアート</td>
+            <td class="model">docs/mecha/bench/ b_head, b_torso, b_arm, b_waist, b_leg</td>
+            <td><span class="badge ok">通過済</span></td>
+          </tr>
+          <tr>
+            <td>スプライトシート（autosprite）</td>
+            <td class="dash">—</td>
+            <td><span class="badge new">未検証</span></td>
+          </tr>
+          <tr>
+            <td>3D Jutsu シーンビルダー</td>
+            <td class="dash">—</td>
+            <td><span class="badge new">未検証</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 8. 注意点 -->
+  <section>
+    <h2>注意点・制約<span class="en">CAVEATS</span></h2>
+    <div class="notes">
+      <ul class="spec">
+        <li>ローカル画像を渡すには <span class="mono">media_upload_widget</span> が必須。チャット添付ファイルは MCP 側から読めない仕様</li>
+        <li><strong class="k">GLBのままではUnityに入らない。</strong> glTFast または UniGLTF の導入が別途必要（FBXではない点に注意）</li>
+        <li>生成物はURLで返却されるため、ダウンロードと配置はこちら側の作業になる</li>
+        <li>音響3モデルは「ゲームパイプライン専用」の縛りがある</li>
+        <li><strong class="k">リリース前の必須作業：UniVRM のライセンス表記。</strong> UniVRM は MIT ライセンス（<span class="mono">Copyright (c) 2020 VRM Consortium</span> ／ <span class="mono">Copyright (c) 2018 Masataka SUMI for MToon</span>）であり、著作権表示と許諾表示をソフトウェアに含めることが条件。<strong class="k">ゲームのライセンス表記画面に全文を載せる必要がある</strong>（LICENSE.txt をそのまま同梱すればよい）。VRoid由来ではなくライブラリ由来の義務のため回避できない</li>
+        <li>VRoid標準アイテムのみで作ったモデル自体には<strong class="k">クレジット表記の義務は無い</strong>。ただし VRoid Hub 経由で他者モデルを使う場合は投稿者が表記を要求できるため要確認</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 9. クレジット換算 -->
+  <section>
+    <h2>残クレジットの体感<span class="en">BUDGET</span></h2>
+    <p class="lead">現在の 1,761cr で何ができるかの目安。</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="label">3Dモデル（text→3D）</div>
+        <div class="value">約45<span class="unit">体</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">効果音（2秒）</div>
+        <div class="value">約3,500<span class="unit">本</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">BGM（30秒）</div>
+        <div class="value">約930<span class="unit">曲</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">2Dアート（2K透過）</div>
+        <div class="value">約580<span class="unit">枚</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. 次のアクション -->
+  <section>
+    <h2>次にやること<span class="en">NEXT</span></h2>
+    <p class="lead">方針は「<strong class="k">まずVRoidを実際に触り、限界を確かめてから決める</strong>」。自作ツールはVRoidで足りないと判明した場合にのみ検討する。ライセンス上は自作しても問題ないことが確認済みのため、判断を先送りにしても手戻りは生じない。</p>
+    <div class="steps">
+      <div class="step">
+        <div class="no">STEP 01 ／ 最優先</div>
+        <div class="t">VRoidを実際に触る</div>
+        <div class="d">まだ未使用のため、表現の限界が不明。<strong class="k">ここが埋まらない限り、その先の判断は全て推測になる。</strong>下のチェックリストを確認しながら1〜2体作ってみる。</div>
+        <div class="pill">無料</div>
+      </div>
+      <div class="step">
+        <div class="no">STEP 02</div>
+        <div class="t">Unity へ1体通す</div>
+        <div class="d">VRM出力 → UniVRM（VRM 1.0なら <span class="mono">Migrate to VRM 1</span>）→ MToonで表示。<strong class="k">取り込みとトゥーンが同時に成立すること</strong>を実機で押さえる。</div>
+        <div class="pill">無料</div>
+      </div>
+      <div class="step">
+        <div class="no">STEP 03</div>
+        <div class="t">Unity公式MCPを繋ぐ</div>
+        <div class="d"><span class="mono">unity mcp configure claude-code</span> で接続。以降の実装速度が根本的に変わる。VRoidの結果がどう転んでも必要になる。</div>
+        <div class="pill">無料</div>
+      </div>
+      <div class="step">
+        <div class="no">STEP 04</div>
+        <div class="t">Higgsfieldの担当範囲</div>
+        <div class="d">キャラ本体をVRoidが担うなら、Higgsfieldは<strong class="k">コンセプト案の量産</strong>と<strong class="k">VRoidの範囲外の造形</strong>（メカ、武器、小物、人型でない敵）およびテクスチャ生成に回る。</div>
+        <div class="pill">2 cr/枚 ／ 3Dは25cr〜</div>
+      </div>
+      <div class="step">
+        <div class="no">STEP 05 ／ 保留</div>
+        <div class="t">自作ツール ・ 3D Jutsu ・ autosprite</div>
+        <div class="d"><strong class="k">VRoidで事足りるなら自作ツールは不要。</strong>STEP 01 の結果を見てから改めて判断する。自前ベースメッシュの構築（3D Jutsu）と2D転換（autosprite）も同様に保留。</div>
+        <div class="pill">保留</div>
+      </div>
+    </div>
+
+    <h3>STEP 01 で確認しておくこと</h3>
+    <p style="font-size:13.5px;margin:0 0 6px">触りながら以下を見ておくと、<strong class="k">自作ツールが要るかどうかを後から判断できる</strong>。</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>確認項目</th><th>なぜ見るのか</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>身長・体型のパラメータの幅</td><td>連続値で自由に動くか、プリセット的か。<strong class="k">スライダー的な調整が要件なら、ここが足りるかで決まる</strong></td></tr>
+          <tr><td>標準アイテム（髪型・服）の種類と幅</td><td>BOOTH素材に頼らず、標準の範囲だけでどれだけ作り分けられるか。権利確認のコストを回避できるかに直結</td></tr>
+          <tr><td>テクスチャの読み込み・書き出し</td><td>対応していれば <strong class="k">Higgsfieldで生成したテクスチャを持ち込める</strong>。連携点になる</td></tr>
+          <tr><td>1体あたりの作成時間</td><td><strong class="k">敵キャラの量産が現実的かの判断材料。</strong>ここが重ければ自作ツールの動機になる</td></tr>
+          <tr><td>出力VRMのポリゴン数</td><td>スマホ向けの場合に効いてくる。多ければ減らす工程が要る</td></tr>
+          <tr><td>体型を変えた複数モデルの骨格</td><td>共通なら<strong class="k">パーツ差し替えが成立する</strong>。自作ツールを作る場合の前提条件</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="notes">
+      <ul class="spec">
+        <li><strong class="k">自作ツールが必要になるのは、次のいずれかに当たった場合。</strong>そうでなければ作らない方がよい</li>
+        <li>ゲーム内でリアルタイムに見た目を変える必要がある（装備が外見に反映されるなど）</li>
+        <li>敵キャラを大量にバリエーション生成したく、VRoidでの手作業では追いつかない</li>
+        <li>VRoidの表現範囲を超える造形が中核に必要（メカ、人型でないモンスターなど）</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    Higgsfield MCP 機能調査レポート / 2026-09-07 作成 — コストは全てプリフライト機能による実測値（課金は発生していません）
+  </footer>
+
+</div>
+</body>
+</html>

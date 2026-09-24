@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テスター募集 — ROBO SPEED</title>
+<meta name="description" content="Android版 ROBO SPEED のクローズドテスト参加者を募集しています。参加は3分ほどで終わります。">
+<meta property="og:title" content="ROBO SPEED テスター募集 / Looking for testers">
+<meta property="og:description" content="Google Play の公開条件で、12人のテスターが必要です。参加は3分ほどで終わります。">
+<meta property="og:image" content="https://aidgames.jp/robospeed/shots/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<!--
+  =========================================================================
+  クローズドテスト 参加のお願い（日本語／English 切り替え）
+  =========================================================================
+
+  ■ 置き場所
+      /home/caoipsov/public_html/aidgames.jp/robospeed/test.html
+
+  ■ なぜ1枚のページにするか
+      X や Reddit に長文を貼るより、**URL 1つ**のほうが読まれる。
+      手順・条件・つまずいたときの対処を、全部ここに置く。
+
+  ■ 言語の切り替え
+      **JavaScript が動かなくても両方読める**ようにしてある。
+      html に data-lang が付いたときだけ、片方を隠す。
+      付いていなければ両方出る＝壊れても情報は失われない。
+
+      初期表示は navigator.language で決める。
+      Reddit から来た人がいきなり日本語の壁に当たらないようにするため。
+      選んだ言語は localStorage に覚える（読めなくても既定に落ちるだけ）。
+
+  ■ 12人そろったら
+      ★RECRUIT_STATUS の印の段を「募集は締め切りました」に書き換える。
+      **放置すると、公開後も募集中に見える。**
+
+  ■ 盛らない
+      「すぐ終わります」「簡単です」と押しつけない。
+      **相手の手間を正直に書く。** 3分と書いたら3分で終わる導線にする。
+  =========================================================================
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --ink: #12171a; --muted: #5c676d; --line: #d5dcdf;
+    --bg: #ffffff; --card: #f6f8f9; --accent: #00756c; --accent-ink: #ffffff;
+    --warn-bg: #fff8e6; --warn-line: #e6c65c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8ecee; --muted: #98a3a9; --line: #39424a;
+      --bg: #14181b; --card: #1c2126; --accent: #2ec4b6; --accent-ink: #06231f;
+      --warn-bg: #2a2415; --warn-line: #6b5a20;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 0 72px;
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    line-height: 1.85; color: var(--ink); background: var(--bg);
+  }
+  .wrap { width: 100%; max-width: 680px; margin: 0 auto; padding: 0 20px; }
+  a { color: var(--accent); }
+
+  header { padding: 24px 0 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .crumb { font-size: 12px; color: var(--muted); margin: 0; }
+
+  /* 言語の切り替え。**右端に置いて、常に同じ位置**にする */
+  .langsw { margin-left: auto; display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .langsw button {
+    appearance: none; border: 0; cursor: pointer;
+    background: transparent; color: var(--muted);
+    font: inherit; font-size: 12.5px; font-weight: 700;
+    padding: 5px 14px; line-height: 1.6;
+  }
+  .langsw button + button { border-left: 1px solid var(--line); }
+  .langsw button:hover { color: var(--ink); }
+  .langsw button[aria-current="true"] { background: var(--accent); color: var(--accent-ink); }
+
+  h1 { font-size: 26px; margin: 18px 0 6px; line-height: 1.35; }
+  .lede { font-size: 15px; margin: 0 0 8px; }
+  h2 { font-size: 17px; margin: 40px 0 12px; padding-top: 20px; border-top: 1px solid var(--line); }
+  h2:first-of-type { margin-top: 32px; }
+  h3 { font-size: 15px; margin: 24px 0 6px; }
+  p { font-size: 14.5px; margin: 0 0 12px; }
+  ul { padding-left: 1.3em; margin: 0 0 12px; }
+  li { font-size: 14.5px; margin-bottom: 4px; }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  /* 手順。番号を大きく出して、3つしかないことを見せる */
+  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 0 0 8px; }
+  ol.steps > li {
+    counter-increment: s; position: relative;
+    padding: 16px 18px 16px 58px; margin-bottom: 10px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+  }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 18px; top: 14px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink);
+    font-size: 14px; font-weight: 700; line-height: 26px; text-align: center;
+  }
+  ol.steps .t { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  ol.steps .d { font-size: 13.5px; color: var(--muted); margin: 0 0 8px; }
+  .btn {
+    display: inline-block; text-decoration: none;
+    background: var(--accent); color: var(--accent-ink);
+    padding: 9px 16px; border-radius: 7px; font-size: 14px; font-weight: 700;
+    word-break: break-all;
+  }
+  .btn:hover { opacity: .88; }
+
+  .note {
+    background: var(--warn-bg); border: 1px solid var(--warn-line);
+    border-radius: 9px; padding: 13px 16px; margin: 0 0 16px;
+  }
+  .note p { margin: 0; font-size: 13.5px; }
+  .note p + p { margin-top: 8px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 12px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--card); font-weight: 700; white-space: nowrap; }
+
+  /* 実機の画面写真。**縦長なので幅を絞る。** 全幅にすると縦に伸びすぎて、
+     読んでいる途中で本文が視界から消える。
+     ※ 画像が置かれていないときは onerror で figure ごと消える（壊れた枠を出さない）。 */
+  figure.shot { margin: 0 0 16px; }
+  figure.shot img {
+    display: block; width: 100%; max-width: 240px; height: auto;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+  }
+  figure.shot figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line);
+           font-size: 12px; color: var(--muted); }
+
+  /* ---- 言語の出し分け ----
+     **html に data-lang が付いているときだけ**片方を隠す。
+     JavaScript が動かない環境では両方出る。情報は失われない。 */
+  html[data-lang="ja"] .lang-en { display: none; }
+  html[data-lang="en"] .lang-ja { display: none; }
+  /* 切り替えボタン自体は、JS が動くときだけ意味がある */
+  html:not([data-lang]) .langsw { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="crumb"><a href="/">AID GAMES</a> ／ <a href="/robospeed/">ROBO SPEED</a></p>
+    <div class="langsw" role="group" aria-label="Language">
+      <button type="button" data-set="ja">日本語</button>
+      <button type="button" data-set="en">English</button>
+    </div>
+  </header>
+
+  <!-- ================= 日本語 ================= -->
+  <div class="lang-ja">
+
+    <h1>テスターを募集しています</h1>
+    <p class="lede">
+      Android用ゲーム「ROBO SPEED」を Google Play で公開するために、
+      <strong>12人のテスターが14日間</strong>必要です。力を貸していただけると助かります。
+    </p>
+    <p class="muted">参加は3分ほどで終わります。毎日遊ぶ必要はありません。</p>
+
+    <!-- ★RECRUIT_STATUS 12人そろったら、この段を「募集は締め切りました」に書き換える -->
+
+    <div class="note" style="margin-top:20px">
+      <p><strong>先にお伝えしておきます。すぐにはインストールできません。</strong></p>
+      <p>参加を登録しても、Google 側に反映されるまで時間がかかります。<strong>30分ほどで入れるようになることもあれば、審査中は1〜2日かかることもあります。</strong>
+      そのあいだ Play ストアには「<strong>アイテムは見つかりませんでした</strong>」と表示されます。<a href="#notfound">この画面です</a>。</p>
+      <p><strong>失敗ではありません。</strong>①と②を先に済ませておいていただければ、時間が経てば入れるようになります。</p>
+    </div>
+
+    <h2>参加のしかた</h2>
+
+    <ol class="steps">
+      <li>
+        <div class="t">グループに参加する</div>
+        <p class="d">Google グループです。<strong>参加した人だけがアプリを受け取れます。</strong>承認待ちはありません。</p>
+        <a class="btn" href="https://groups.google.com/g/robospeed-testers" target="_blank" rel="noopener">グループに参加</a>
+      </li>
+      <li>
+        <div class="t">テストに参加する</div>
+        <p class="d">開いて「テスターになる」を押してください。<strong>ここを飛ばすと、次でインストールできません。</strong></p>
+        <a class="btn" href="https://play.google.com/apps/testing/jp.aid.robospeed" target="_blank" rel="noopener">テストに参加</a>
+      </li>
+      <li>
+        <div class="t">Google Play からインストールする</div>
+        <p class="d">②のページから Google Play へ進めます。以上で完了です。</p>
+      </li>
+    </ol>
+
+    <div class="note">
+      <p><strong>スマホの Play ストアに入っている Google アカウントで参加してください。</strong></p>
+      <p>普段お使いのメールアドレスとは違うことがあります。Play ストアを開いて右上の丸いアイコンを押すと、いま使っているアカウントが確認できます。ここが違うと「アプリが見つかりません」と出ます。</p>
+    </div>
+
+    <h2>お願いしたいこと</h2>
+    <ul>
+      <li><strong>2週間ほど、アプリを消さずに置いておいてください。</strong>Google の条件が「12人が14日間」となっているためです。</li>
+      <li><strong>「テストをやめる」は押さないでください。</strong>記録が消えることがあります。</li>
+      <li>毎日遊ぶ必要はありません。気が向いたときに遊んでいただければ十分です。</li>
+      <li>気づいたこと・遊びにくかったところがあれば、教えていただけると助かります。</li>
+    </ul>
+
+    <h2>テストが終わったあと</h2>
+    <p>
+      <strong>そのまま遊び続けられます。</strong>入れ直す必要はありません。
+      自己ベストや図鑑の記録も引き継がれ、公開版へは普通のアップデートとして切り替わります。
+    </p>
+
+    <h2>参加できない場合</h2>
+    <table>
+      <tr><th>iPhone のみ</th><td>Android アプリのため、参加できません。申し訳ありません。</td></tr>
+      <tr><th>Google アカウントが無い</th><td>Android を使っていれば必ず持っています。Play ストア右上でご確認ください。</td></tr>
+    </table>
+
+    <h2 id="notfound">「アイテムは見つかりませんでした」と出たとき</h2>
+
+    <figure class="shot">
+      <img src="shots/notfound.jpg" alt="Google Play で「アイテムは見つかりませんでした」と表示された画面"
+           loading="lazy" onerror="this.closest('figure').remove()">
+      <figcaption>この画面が出ても、失敗ではありません。</figcaption>
+    </figure>
+
+    <p><strong>いちばん多いのは「まだ反映されていない」だけ、というものです。</strong></p>
+    <p>
+      参加を登録しても、Google 側に伝わるまで時間がかかります。
+      <strong>30分ほどで入れるようになることもあれば、審査中は1〜2日かかることもあります。</strong>
+      少し時間を置いて、もう一度お試しください。
+    </p>
+
+    <h3>それでも出るときに、確かめること</h3>
+    <ul>
+      <li><strong>①のグループに参加しましたか。</strong>グループのメンバーでないと配信されません。</li>
+      <li><strong>②のオプトインを済ませましたか。</strong>「テスターになる」を押していないと入れません。</li>
+      <li><strong>Play ストアのアカウントは合っていますか。</strong>Play ストア右上の丸いアイコンで確認できます。①②とは別のアカウントだと、この画面になります。</li>
+    </ul>
+
+    <h3>それでも駄目なとき</h3>
+    <p>メールでご連絡ください。<a href="mailto:aid.2019.run@gmail.com">aid.2019.run@gmail.com</a></p>
+
+    <h2>どんなゲームか</h2>
+    <p>
+      カードを5枚そろえてロボットを組み立て、撃つ。<strong>色の揃いかたで威力が決まります。</strong>
+      敵は倒すたびに速くなるので、弱い役で早く撃つか、殴られるのを覚悟で強い役を待つかの判断が、
+      そのまま撃破数の差になります。
+    </p>
+    <p>操作はタップだけ。無料で、アプリ内課金はありません。広告は結果画面と一時停止中にだけ出ます。</p>
+    <p><a href="/robospeed/">画面写真つきの詳しい説明はこちら</a></p>
+
+  </div>
+
+  <!-- ================= English ================= -->
+  <div class="lang-en">
+
+    <h1>Looking for testers</h1>
+    <p class="lede">
+      I'm a solo developer in Japan. To publish my Android game on Google Play,
+      I need <strong>12 testers opted in for 14 days</strong>. I'd really appreciate your help.
+    </p>
+    <p class="muted">It takes about 3 minutes. You don't have to play every day.</p>
+
+    <!-- ★RECRUIT_STATUS Replace this section with "Recruiting is closed" once 12 testers are in -->
+
+    <div class="note" style="margin-top:20px">
+      <p><strong>Heads-up: you won't be able to install straight away.</strong></p>
+      <p>After you opt in, it takes a while for Google to propagate it. <strong>Sometimes about 30 minutes; while the app is under review it can take a day or two.</strong>
+      Until then the Play Store shows "<strong>Item not found</strong>" — <a href="#notfound-en">this screen</a>.</p>
+      <p><strong>That is not a failure.</strong> Do steps 1 and 2 now, and the install will work once it comes through.</p>
+    </div>
+
+    <h2>How to join</h2>
+
+    <ol class="steps">
+      <li>
+        <div class="t">Join the Google Group</div>
+        <p class="d"><strong>Only members of this group can receive the app.</strong> Joining is instant — no approval needed.</p>
+        <a class="btn" href="https://groups.google.com/g/robospeed-testers" target="_blank" rel="noopener">Join the group</a>
+      </li>
+      <li>
+        <div class="t">Opt in to the test</div>
+        <p class="d">Open the link and press "Become a tester". <strong>Skipping this means step 3 won't work.</strong></p>
+        <a class="btn" href="https://play.google.com/apps/testing/jp.aid.robospeed" target="_blank" rel="noopener">Opt in</a>
+      </li>
+      <li>
+        <div class="t">Install from Google Play</div>
+        <p class="d">The opt-in page links straight to the Play Store. That's it.</p>
+      </li>
+    </ol>
+
+    <div class="note">
+      <p><strong>Please use the Google account that is signed in to the Play Store on your phone.</strong></p>
+      <p>It is often not the email address you use day to day. Open the Play Store and tap your avatar in the top right to check. A mismatch gives you "item not found".</p>
+    </div>
+
+    <h2>What I'm asking</h2>
+    <ul>
+      <li><strong>Please keep it installed for about two weeks.</strong> Google requires 12 testers opted in for 14 continuous days.</li>
+      <li><strong>Please don't press "Leave the test"</strong> — it can wipe your progress.</li>
+      <li>You don't have to play every day. Whenever you feel like it is fine.</li>
+      <li>Any feedback is welcome, but not required.</li>
+    </ul>
+
+    <h2>After the test</h2>
+    <p>
+      <strong>You can keep playing.</strong> No reinstall needed, and your records carry over —
+      the public release arrives as an ordinary update.
+    </p>
+
+    <h2>Who can't join</h2>
+    <table>
+      <tr><th>iPhone only</th><td>This is an Android app, so unfortunately you can't take part.</td></tr>
+      <tr><th>No Google account</th><td>If you use Android you already have one. Check the Play Store avatar, top right.</td></tr>
+    </table>
+
+    <h2 id="notfound-en">If you see "Item not found"</h2>
+
+    <figure class="shot">
+      <img src="shots/notfound.jpg" alt="Google Play showing &quot;Item not found&quot;"
+           loading="lazy" onerror="this.closest('figure').remove()">
+      <figcaption>Seeing this does not mean anything went wrong.</figcaption>
+    </figure>
+
+    <p><strong>Most of the time it simply hasn't propagated yet.</strong></p>
+    <p>
+      After opting in, Google needs time to push it through.
+      <strong>Sometimes about 30 minutes; while the app is under review it can take a day or two.</strong>
+      Give it a while and try again.
+    </p>
+
+    <h3>If it keeps happening, check</h3>
+    <ul>
+      <li><strong>Did you join the group (step 1)?</strong> Non-members are not served the app.</li>
+      <li><strong>Did you opt in (step 2)?</strong> You must press "Become a tester".</li>
+      <li><strong>Is your Play Store account the same one?</strong> Tap your avatar in the Play Store, top right. A different account gives you exactly this screen.</li>
+    </ul>
+
+    <h3>Still stuck</h3>
+    <p>Email me: <a href="mailto:aid.2019.run@gmail.com">aid.2019.run@gmail.com</a></p>
+
+    <h2>About the game</h2>
+    <p>
+      ROBO SPEED is a card-based score attack game. Match five cards to build a mech and fire it.
+      <strong>The more the maker colours match, the harder it hits.</strong>
+      Enemies get faster with every kill, so every hand is a choice: fire now with a weak hand,
+      or take a beating and wait for a strong one.
+    </p>
+    <p>
+      Tap-only controls. Free, no in-app purchases. Ads appear only on the result and pause screens.
+      <strong>The UI is in Japanese</strong>, but the game is almost entirely visual — no reading required.
+    </p>
+    <p><a href="/robospeed/">Screenshots and a fuller description</a></p>
+
+    <h2>Happy to return the favour</h2>
+    <p>
+      If you're running a closed test too, send me your links at
+      <a href="mailto:aid.2019.run@gmail.com">aid.2019.run@gmail.com</a> and I'll opt in.
+      I actually play the games I test.
+    </p>
+
+  </div>
+
+  <footer>
+    AID GAMES ／ <a href="mailto:aid.2019.run@gmail.com">aid.2019.run@gmail.com</a><br>
+    <a href="/robospeed/privacy.html">プライバシーポリシー / Privacy policy</a>
+  </footer>
+
+</div>
+
+<script>
+/* 言語の切り替え。**JavaScript が動かなければ両方出る**（CSS 側でそう組んである）。
+   初期値は「覚えた選択 → ブラウザの言語 → 日本語」の順で決める。
+   Reddit から来た人が、いきなり日本語の壁に当たらないようにするため。 */
+(function () {
+  var KEY = "rs_test_lang";
+  var root = document.documentElement;
+
+  function saved() {
+    try { return localStorage.getItem(KEY); } catch (e) { return null; }
+  }
+  function remember(v) {
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+  }
+  function guess() {
+    var l = (navigator.language || "").toLowerCase();
+    return l.indexOf("ja") === 0 ? "ja" : "en";
+  }
+  function apply(v) {
+    root.setAttribute("data-lang", v);
+    root.setAttribute("lang", v);           /* 読み上げと翻訳のために合わせる */
+    var b = document.querySelectorAll(".langsw button");
+    for (var i = 0; i < b.length; i++) {
+      b[i].setAttribute("aria-current", b[i].getAttribute("data-set") === v ? "true" : "false");
+    }
+  }
+
+  apply(saved() === "ja" || saved() === "en" ? saved() : guess());
+
+  document.querySelector(".langsw").addEventListener("click", function (e) {
+    var t = e.target.closest("button[data-set]");
+    if (!t) { return; }
+    var v = t.getAttribute("data-set");
+    apply(v);
+    remember(v);
+    window.scrollTo(0, 0);                  /* 切り替えたら先頭から読ませる */
+  });
+})();
+</script>
+</body>
+</html>

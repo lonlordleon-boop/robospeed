@@ -1,0 +1,11 @@
+{
+  "appId": "jp.aid.robospeed",
+  "appName": "ROBO SPEED",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

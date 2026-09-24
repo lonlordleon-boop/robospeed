@@ -1,0 +1,210 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3Dの試し — ロボ・スピード</title>
+
+<!--
+  画像 → 3D の試し置き場。**ゲーム本体（playtest.html）とは無関係。**
+  仕様には入れていない。使えるかどうかを実物で見るためだけのページ。
+
+  model-viewer は CDN から読む。**この1本だけネットが要る。**
+  GLB 自体は docs/mecha/3d/ に置いてあるので、ローカルから配信される。
+-->
+<script type="module"
+  src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+
+<style>
+  :root {
+    --ground:#e7eaec; --surface:#fff; --surface-2:#f3f5f6;
+    --ink:#12171a; --muted:#5c676d; --line:#c9d1d5; --accent:#00756c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ground:#14181b; --surface:#1d2226; --surface-2:#252b30;
+            --ink:#e8ecee; --muted:#8e9aa1; --line:#39424a; --accent:#2ec4b6; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN",sans-serif;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+    line-height:1.6;
+  }
+  h1 { font-size:17px; margin:0 0 2px; letter-spacing:.04em; }
+  .sub { font-size:12px; color:var(--muted); margin:0 0 14px; }
+
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  .card {
+    flex:1 1 300px; min-width:0;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    overflow:hidden;
+  }
+  .card h2 {
+    font-size:11px; font-weight:800; letter-spacing:.12em; color:var(--muted);
+    margin:0; padding:9px 12px; border-bottom:1px solid var(--line);
+    background:var(--surface-2);
+  }
+  .pane { height:min(62vh, 460px); display:flex; align-items:center; justify-content:center; }
+  .pane img { max-width:100%; max-height:100%; object-fit:contain; }
+  model-viewer { width:100%; height:100%; background:var(--surface-2); --poster-color:transparent; }
+
+  /* 縦持ちでは2枚が縦に積まれる。**見たいのは3Dのほう**なので先に出し、
+     元絵は下に回す。高さも詰めて、スクロールせずに両方が視界に入るようにする。 */
+  @media (max-width: 720px) {
+    .card { flex:1 1 100%; }
+    #card3d { order:-1; }
+    .pane { height:min(44vh, 340px); }
+  }
+
+  .swap { display:flex; gap:6px; padding:8px 10px 0; }
+  .swap button {
+    flex:1 1 0; font:inherit; font-size:12px; font-weight:700; padding:8px 6px;
+    border-radius:8px; border:1.5px solid var(--line); background:var(--surface);
+    color:var(--muted); cursor:pointer; white-space:nowrap;
+  }
+  .swap button.on { border-color:var(--accent); color:var(--accent); }
+
+  .note { font-size:12px; color:var(--muted); padding:10px 12px; border-top:1px solid var(--line); }
+  .miss { padding:24px 14px; font-size:13px; color:var(--muted); text-align:center; }
+
+  .facts { margin:14px 0 0; border:1px solid var(--line); border-radius:12px; overflow:hidden;
+           background:var(--surface); }
+  .facts div { display:flex; gap:10px; padding:8px 12px; font-size:13px;
+               border-top:1px solid var(--line); }
+  .facts div:first-child { border-top:0; }
+  .facts b { flex:0 0 9.5em; font-weight:700; color:var(--muted); }
+  .btns { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .btns button {
+    font:inherit; font-size:13px; font-weight:700; padding:9px 14px;
+    border-radius:9px; border:1.5px solid var(--line); background:var(--surface);
+    color:var(--ink); cursor:pointer;
+  }
+  .btns button.on { border-color:var(--accent); color:var(--accent); }
+</style>
+
+<h1>画像 → 3D の試し</h1>
+<p class="sub">元絵1枚から起こしたメッシュ。指で回して、裏側がどうなっているかを見るためのページです。</p>
+
+<div class="row">
+  <div class="card">
+    <h2>元の絵（2D）</h2>
+    <div class="pane"><img src="mecha/game/h6_red.png" alt="元の機体"></div>
+    <p class="note">ピュアカラー・レッドの旗艦。<b>正面からの1枚だけ</b>を渡しています。</p>
+  </div>
+
+  <div class="card" id="card3d">
+    <h2>起こした3D（GLB）</h2>
+    <div class="pane" id="pane">
+      <!-- **出てきたメッシュは元絵の正面と軸が揃っていない。**
+           実測で、正面はだいたい 90度・背面は 270度。ここが自動で揃わないのは
+           1枚絵からの生成では普通に起きる（部位を組む用途では、これが毎回手作業になる）。 -->
+      <model-viewer id="mv"
+        src="mecha/3d/h6_red.glb"
+        alt="3Dにした機体"
+        camera-controls touch-action="pan-y"
+        auto-rotate auto-rotate-delay="900" rotation-per-second="18deg"
+        shadow-intensity="0.9" exposure="1.0"
+        autoplay
+        camera-orbit="90deg 82deg 100%">
+      </model-viewer>
+    </div>
+    <div class="swap">
+      <button id="mStill" class="on">① 骨なし</button>
+      <button id="mRig">② 一発で骨入り</button>
+      <button id="mRig2">③ ①に後から骨入れ</button>
+    </div>
+    <p class="note">ドラッグで回転、ピンチで拡大。<b>裏側は推測で作られています</b>ので、そこを見てください。<br>
+      骨入りのほうは、<b>肩の翼と頭の冠がどう追従するか</b>を見てください。自動リギングがいちばん壊しやすい所です。</p>
+  </div>
+</div>
+
+<div class="btns">
+  <button id="spin" class="on">自動で回す</button>
+  <button id="front">正面</button>
+  <button id="back">背面（推測で作られた面）</button>
+</div>
+
+<div class="facts" id="facts">
+  <div><b>元絵</b><span>mecha/game/h6_red.png（正面1枚）</span></div>
+  <div><b>使ったもの</b><span id="made">—</span></div>
+  <div><b>費用</b><span id="cost">—</span></div>
+  <div><b>ファイル</b><span id="size">読み込み中…</span></div>
+  <div><b>アニメーション</b><span id="anim">—</span></div>
+  <div><b>形の数字</b><span id="geo">—</span></div>
+  <div><b>分かったこと</b><span>容量の主犯は<b>テクスチャ</b>（全体の7〜8割）。メッシュ・骨・アニメは誤差。<br>
+    骨を一発で頼むと<b>メッシュごと作り直される</b>。形を決めてから骨を入れれば動かない。</span></div>
+</div>
+
+<script>
+  const mv = document.getElementById("mv");
+
+  // 読めなかったときは、黙って空にせず理由を出す
+  mv.addEventListener("error", () => {
+    document.getElementById("pane").innerHTML =
+      '<p class="miss">GLB を読み込めませんでした。<br>' +
+      'mecha/3d/h6_red.glb があるか、ネットにつながっているか（model-viewer は CDN 読み）を確認してください。</p>';
+  });
+
+  const spin = document.getElementById("spin");
+  spin.addEventListener("click", () => {
+    const on = mv.hasAttribute("auto-rotate");
+    if (on) { mv.removeAttribute("auto-rotate"); } else { mv.setAttribute("auto-rotate", ""); }
+    spin.classList.toggle("on", !on);
+  });
+
+  // 正面・背面。**この機体の正面は 90度、背面は 270度**（軸が元絵と揃っていないため）
+  const look = (deg) => { mv.removeAttribute("auto-rotate"); spin.classList.remove("on");
+                          mv.setAttribute("camera-orbit", deg + "deg 82deg 100%"); };
+  document.getElementById("front").addEventListener("click", () => look(90));
+  document.getElementById("back").addEventListener("click", () => look(270));
+
+  // 2つのモデルを差し替えて見比べる。**同じ元絵から、骨あり／なしで作ったもの。**
+  const MODELS = {
+    still: { src:"mecha/3d/h6_red.glb",
+             label:"① メッシュ＋テクスチャのみ（骨なし）", cost:"30 クレジット",
+             geo:"三角形 30,003 ／ 頂点 36,775 ／ 幅高比 0.852・奥高比 0.384" },
+    rig:   { src:"mecha/3d/h6_red_rig.glb",
+             label:"② 骨入りを一発で頼んだもの（メッシュごと作り直された）", cost:"38 クレジット",
+             geo:"三角形 30,030 ／ 頂点 35,719 ／ 幅高比 0.852・奥高比 0.400 ← ①と別物" },
+    rig2:  { src:"mecha/3d/h6_red_rig2.glb",
+             label:"③ ①のメッシュに、あとから骨だけ入れたもの", cost:"8 クレジット（①の30に追加）",
+             geo:"三角形 30,003 ／ 頂点 36,783 ／ 幅高比 0.852・奥高比 0.384 ← ①と同じ形" },
+  };
+  const bStill = document.getElementById("mStill");
+  const bRig   = document.getElementById("mRig");
+  const bRig2  = document.getElementById("mRig2");
+
+  function showSize(src) {
+    document.getElementById("size").textContent = "読み込み中…";
+    fetch(src, { method: "HEAD" })
+      .then(r => {
+        const n = Number(r.headers.get("content-length") || 0);
+        document.getElementById("size").textContent =
+          r.ok ? (n ? (n / 1024 / 1024).toFixed(2) + " MB（GLB。Unity にそのまま入ります）" : "GLB（大きさ不明）")
+               : "まだありません";
+      })
+      .catch(() => { document.getElementById("size").textContent = "確認できません"; });
+  }
+
+  function load(kind) {
+    const m = MODELS[kind];
+    mv.src = m.src;
+    bStill.classList.toggle("on", kind === "still");
+    bRig.classList.toggle("on", kind === "rig");
+    bRig2.classList.toggle("on", kind === "rig2");
+    document.getElementById("made").textContent = m.label;
+    document.getElementById("cost").textContent = m.cost;
+    document.getElementById("geo").textContent = m.geo;
+    showSize(m.src);
+  }
+  bStill.addEventListener("click", () => load("still"));
+  bRig.addEventListener("click", () => load("rig"));
+  bRig2.addEventListener("click", () => load("rig2"));
+
+  // アニメーションが入っていれば、名前を出す（骨なしの方は何も出ない）
+  mv.addEventListener("load", () => {
+    const names = mv.availableAnimations || [];
+    document.getElementById("anim").textContent =
+      names.length ? names.join(" / ") + "（自動再生中）" : "なし（静止メッシュ）";
+  });
+
+  load("still");
+</script>

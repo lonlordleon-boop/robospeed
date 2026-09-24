@@ -1,0 +1,3363 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>ロボ・スピード 実機テスト</title>
+
+<!--
+  ロボ・スピード 実機プレイアブル（仕様書 9-5「実機で指を使って決めること」用）
+
+  目的は「面白いかどうか」ではなく、**指で触らないと決まらない数値を決めること**。
+    ・フリックの距離／角度しきい値
+    ・上書き 0.7秒 が「重い」か「テンポがいい」か
+    ・共有ライン4枚が一瞬で読めるか
+    ・演出3秒が「ご褒美」か「邪魔」か
+    ・合体の手応え
+
+  ルールの数値は Core/Balance.cs をそのまま写している。
+  写し間違いを防ぐため、役判定は 5^5 = 3,125通りを起動時に全数チェックして
+  仕様書 4-1 の表と突き合わせる（画面右上のバッジ）。ここが赤くなったら信用しないこと。
+
+  これは **感触を決めるための捨て台** であって、製品の実装ではない。
+  数値が固まったら Unity 側（Core/ をそのまま使う）へ移す。
+-->
+
+<style>
+:root {
+  --ground:     #e7eaec;
+  --surface:    #ffffff;
+  --surface-2:  #f3f5f6;
+  --ink:        #12171a;
+  --ink-2:      #3c464c;
+  --muted:      #5c676d;
+  --line:       #c9d1d5;
+  --line-soft:  #dde3e6;
+  --accent:     #00756c;
+  --accent-ink: #ffffff;
+  --good:       #1f7a4d;
+  --bad:        #b3352b;
+  --warn:       #a86b00;
+
+  /* メーカー5色。判別しやすさ最優先（仕様書 3-1／7-6） */
+  --m0: #d93a2b;  /* レッド   */
+  --m1: #1f6feb;  /* ブルー   */
+  --m2: #e5a100;  /* イエロー */
+  --m3: #12916a;  /* グリーン */
+  --m4: #7d4fd1;  /* パープル。もとは「ホワイト」だったが、灰色にしか見えず
+                     未装着（点線グレー）と区別が付かなかったので置き換えた */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:    #14181b;
+    --surface:   #1d2226;
+    --surface-2: #252b30;
+    --ink:       #e8ecee;
+    --ink-2:     #c2cbd0;
+    --muted:     #8e9aa1;
+    --line:      #39424a;
+    --line-soft: #2c343a;
+    --accent:    #2ec4b6;
+    --accent-ink:#0d1114;
+    --good:      #4ec98a;
+    --bad:       #ff6b5e;
+    --warn:      #e0a63a;
+  }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+               "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  font-size: 15px;
+  touch-action: none; user-select: none;
+  overscroll-behavior: none;          /* 引っぱって更新／横スワイプ戻るを止める */
+}
+/* touch-action は継承しない。指で触る要素ひとつひとつに要る。
+   これが無いと、スマホでは縦ドラッグがスクロール扱いになって
+   pointercancel が飛び、フリックが成立しない。 */
+#line, .card, .sidebtn, .bench, #app { touch-action: none; }
+
+/* ゲーム中の下地。**入口と同じ格納庫を、うんと沈めて敷く。**
+   遊んでいる間の主役は作業台とカードなので、背景は読めてはいけない。
+   地の色（--ground）を 84% の濃さで上からかぶせ、
+   「無地ではない」と分かる程度だけ透かす。明暗どちらのテーマでも同じ式で効く。
+
+   #app より前に置き、どちらも z-index は auto のままにする。
+   こうすると並び順どおりに、背景 → 盤面の順で塗られる。 */
+#gamebg {
+  position: fixed; inset: 0;
+  /* --veilbg = 地の色をどれだけかぶせるか。濃いほど背景が沈む */
+  --veilbg: 56%;
+  background:
+    linear-gradient(color-mix(in srgb, var(--ground) var(--veilbg), transparent),
+                    color-mix(in srgb, var(--ground) var(--veilbg), transparent)),
+    url(mecha/title/bg_bright_c.jpg) center 42% / cover no-repeat;
+}
+/* **上段だけは、下地の上に直に文字が乗る。**
+   HPの数字と時計には板が無いので、全体を濃くする代わりに
+   **ここだけ濃くして**、残りの余白は絵を明るいまま見せる。
+   84%で一律に沈めていたときは「ちょっと暗い」と実機で言われた。 */
+#gamebg::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 132px;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--ground) 82%, transparent) 0%,
+    color-mix(in srgb, var(--ground) 55%, transparent) 62%,
+    transparent 100%);
+}
+body.bgdim #gamebg { --veilbg: 78%; }
+body.nogamebg #gamebg { display: none; }
+
+/* ===== 全体レイアウト（横持ち・仕様書 7-4）===== */
+#app {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  /* 下端は OS のジェスチャー帯（ホームバー／戻るスワイプ）と重なる。
+     カードをそこに置くと、指の動きを OS に取られてフリックが死ぬ。 */
+  padding: max(6px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+           max(14px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  gap: 6px;
+}
+
+/* ---- 最上部：HPゲージ2本を左右に対置 ---- */
+/* ---- 上段：HPと時計 ----
+   **数字が主役。** 走っている最中に見るのは「あと何発耐えられるか」で、
+   ラベルではない。以前は数字15pxに対してラベル12pxで、差が付いていなかった。 */
+#top { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; padding-right: 40px; }
+.hp { flex: 1 1 0; min-width: 0; }
+.hp .row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
+.hp .who { font-size: 10px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
+.hp .num {
+  font-size: 26px; font-weight: 900; line-height: 1;
+  font-variant-numeric: tabular-nums; margin-left: auto; letter-spacing: -.01em;
+}
+.hp.me  .num { color: var(--good); }
+.hp.cpu .num { color: var(--bad); }
+/* 残りが少ないと数字ごと警告色にする。バーの色だけだと視界の端で気付けない。 */
+.hp.low .num { color: var(--warn); }
+.hp .track {
+  height: 10px; border-radius: 5px; background: var(--surface-2);
+  border: 1px solid var(--line); overflow: hidden;
+}
+.hp .fill { height: 100%; width: 100%; background: var(--good); transition: width .18s ease-out; }
+.hp.cpu .fill { background: var(--bad); }
+.hp.low .fill { background: var(--warn); }
+
+#top .mid { flex: 0 0 auto; text-align: center; padding: 0 2px; }
+#clock { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.05; }
+#clock .sub {
+  display: block; font-size: 11px; font-weight: 700; color: var(--muted);
+  letter-spacing: .02em; white-space: nowrap; margin-top: 2px;
+}
+
+/* ---- 中段：作業台2つ ---- */
+#mid { flex: 1 1 auto; display: flex; align-items: stretch; gap: 8px; min-height: 0;
+       position: relative; }   /* 動画を重ねる基準（5-4b） */
+.benchwrap {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+  position: relative; justify-content: center;
+}
+.benchwrap > .cap {
+  font-size: 10px; font-weight: 800; color: var(--muted); letter-spacing: .14em;
+  display: flex; align-items: center; gap: 8px;
+}
+/* 隠れている操作だけを小さく添える。読ませる文章にはしない。 */
+.benchwrap > .cap .hint {
+  font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  padding: 1px 6px; border-radius: 5px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); color: var(--muted);
+}
+/* 作業台は **暗い面** にする。
+   白い面のままだと、画面の半分が空欄の用紙に見えていた。
+   部品の絵は黒い輪郭線で描かれているので、暗い下地に置くほうが形が立つ。 */
+.bench {
+  flex: 1 1 auto; min-height: 0; position: relative;
+  border: 2px solid var(--line); border-radius: 12px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #2b3238 0%, #1b2126 60%, #151a1e 100%);
+  display: flex; align-items: stretch; justify-content: center; overflow: hidden;
+  /* 縦に長い窓でも機体が青天井に大きくならないよう、作業台の側で上限をかける */
+  max-height: 470px;
+  padding: 4px 6px 18px; transition: border-color .12s, background .12s;
+}
+/* 上書き先として狙われている作業台。暗い面なので、縁と内側の光で示す。 */
+.bench.target { border-color: var(--accent); box-shadow: inset 0 0 22px color-mix(in srgb, var(--accent) 55%, transparent); }
+.bench.guarding { border-color: var(--accent); box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
+.bench.complete { border-color: var(--good); }
+
+/* 完成した機体の1枚絵。部品の寄せ集めの上に重ねて出す（5-2 / 5-4）。
+   絵は bounding box で切り抜き済みなので contain で入れれば大きさが揃う。 */
+.bench > .whole {
+  position: absolute; inset: 4px 6px 18px; width: auto; height: auto;
+  max-width: calc(100% - 12px); max-height: calc(100% - 22px);
+  margin: auto; object-fit: contain;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .18s;
+}
+/* 完成した瞬間に寄せ集めが消えて機体が現れる。閃光による差し替え（5-4）の簡易版 */
+.bench.assembled > .whole { opacity: 1; visibility: visible; }
+.bench.assembled > .figure { opacity: 0; }
+
+/* 組み上がった機体。頭／腕+胴+腕／腰／脚+脚 で robot らしく見せる */
+/*
+  機体の組み立て。
+  以前は「全セル同じ形」に絵を contain で流し込んでいたため、
+  絵の縦横比（頭0.65／胸0.90／腰1.03／腕0.85／脚0.39）との差が全部余白になり、
+  パーツが実寸 26×25px まで縮んでいた。
+  **セルの側を絵の縦横比に合わせる**ことで、余白ゼロでパーツを最大化する。
+
+  高さは **flex で配る**。`height: %` は親の高さが確定していない経路があると
+  解決されず、画像が原寸（460px）で描かれて画面からはみ出す。
+*/
+.figure {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 0; max-width: 100%;
+}
+.figrow {
+  min-height: 0; display: flex; align-items: stretch; justify-content: center; gap: 2px;
+}
+/* セルは行の高さいっぱいに伸び、幅は絵の縦横比から決まる */
+.cell { flex: 0 0 auto; height: auto; }
+.cell { position: relative; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+/* 空きスロットは **控えめに。** 主役は装着済みの部品であって、空欄ではない。
+   暗い作業台の上なので、点線は白を薄く乗せる。 */
+.cell.empty::after {
+  content: ""; position: absolute; inset: 12%;
+  border: 1.5px dashed rgba(255,255,255,.18); border-radius: 5px;
+}
+.cell img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.cell.mirror img { transform: scaleX(-1); }
+.cell.mirror .tint { transform: scaleX(-1); }
+
+/*
+  メーカー色は **パーツそのものを塗って** 示す。
+  以前は「背後に30%の板を敷く」方式だったが、シルエットが不透明なので
+  板はほとんど隠れ、実機で「作業台の色が変わってない」と報告された。
+  絵をマスクにして色を乗せれば、形を保ったまま確実に色が分かる。
+*/
+/*
+  メーカー色は **canvas であらかじめ塗った画像** を出す。ふつうの <img> なので、
+  ブラウザによる差が出ない。
+
+  CSS の `mask-image` と `mix-blend-mode` は両方とも試して両方とも捨てた。
+  設定が正しくても描画されない環境があり、実機で「色ついてない」が続いた。
+  **見た目の正しさを合成モードに預けない。**
+*/
+/* うっすら残す下地。輪郭を色で縁取って、暗い背景でも部位の切れ目が分かる */
+.cell .plate { position: absolute; inset: 8%; border-radius: 6px; opacity: .16; }
+
+/* 役は作業台の中に重ねる。専用の行を取ると、その分だけ機体が小さくなる */
+.handline {
+  position: absolute; left: 0; right: 0; bottom: 3px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 12px; font-weight: 700; pointer-events: none;
+}
+.handline .name { font-size: 13px; }
+/* 作業台が暗い面になったので、その上に乗る文字は明るい側で描く。 */
+.handline .name { color: #eef3f6; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.handline .mul { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 800; color: #6fe3d2; }
+.handline .pend { color: rgba(255,255,255,.62); font-weight: 600; }
+/* 頭・胸・腰・腕・脚 の順に、装着メーカーの頭文字。切り分け用の確実な表示 */
+.handline .parts {
+  font-size: 13px; font-weight: 800; letter-spacing: .22em;
+  padding: 1px 7px; border-radius: 6px;
+  background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.18); color: #eef3f6;
+}
+
+/* ---- 下部：共有ライン ---- */
+/* 仕様書 7-4：共有ラインは画面下部いっぱい。最も操作頻度が高いので大きく取る */
+/* 主役は作業台の機体。カードは読めれば足りるので、縦は機体に寄せる */
+#bottom { flex: 0 0 clamp(118px, 31vh, 175px); display: flex; align-items: stretch; gap: 8px; }
+#line {
+  flex: 1 1 auto; display: flex; align-items: stretch; justify-content: center; gap: 8px;
+  position: relative;
+}
+/* カードそのものがボタン。操作はタップ1種類だけ（仕様書 7-1・v1.7） */
+.card {
+  flex: 1 1 0; min-width: 0;
+  border-radius: 12px; border: 2px solid var(--line);
+  background: var(--surface); overflow: hidden;
+  display: flex; flex-direction: column;
+  /* manipulation だと、ブラウザが「これは画面を送る指か」を見極めるまで待ち、
+     判断の途中で pointer を取り消すことがある。none にして即座に自分のものにする。 */
+  touch-action: none;
+}
+.card.spare   { opacity: .55; }                    /* 使い道が無い＝捨てる札 */
+.card.over    { border-color: var(--warn); opacity: .8; }
+.card.blocked { opacity: .3; cursor: default; }
+.card.tapped  { transform: scale(.94); }
+
+/*
+  できる操作は、すべてカード下のボタンに出す。
+
+  隠れた操作（フリック → 長押し → カード上端の小さなボタン）を順に試し、
+  **どれも実機では使えなかった。**
+  見えないものは無いのと同じ。並べて見せる。
+*/
+.card { cursor: pointer; }
+.card .face { position: relative; flex: 1 1 auto; min-height: 0; }
+
+/* カードを押すと何が起きるかを、隠さず出しておく。
+
+   帯は3種類あるのに、どれも灰色で同じ濃さだった。
+   「タップで組立」は**いちばん押してほしい操作**なので、主色で塗る。
+   引き直しは失う側なので中間、埋まっている案内は押しても何も起きないので沈める。 */
+.card .taphint {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 2;
+  text-align: center; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+  padding: 3px 0; color: var(--accent-ink); background: var(--muted);
+}
+.card .taphint.go  { background: var(--accent); color: var(--accent-ink); }
+.card .taphint.alt { background: var(--ink-2);  color: var(--accent-ink); }
+.card .taphint.no  { background: var(--line);   color: var(--ink-2); }
+
+/* 上書きボタンは、成立するときだけ場所を取る */
+.card .acts { flex: 0 0 auto; display: none; gap: 3px; padding: 3px; }
+.card.hasacts .acts { display: flex; }
+/* 「装着できるカードだけを明るく」は、上の .go / .alt / .no に移した。
+   ボタンが出ているか（hasacts）ではなく、**帯が示す操作そのもの**で決めたいため。
+   速さ優先では「埋まっている＝タップで引き直し」で、hasacts でも操作は生きている。 */
+.act {
+  flex: 1 1 0; min-width: 0; padding: 8px 0;
+  border-radius: 7px; border: 1.5px solid var(--line);
+  background: var(--surface-2); color: var(--ink);
+  font-size: 12px; font-weight: 800; line-height: 1; cursor: pointer;
+  touch-action: manipulation;
+}
+.act.build { color: var(--accent); border-color: var(--accent);
+             background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+/* 上書きは黄土色のベタ塗りだった。イエローのカード下地（.34）と近く、
+   その1枚だけボタンが溶けて見える。**枠と文字で示して、面は塗らない。**
+   引き直しより一段だけ強い、という関係もこれで付く。 */
+.act.over  { color: var(--ink); border-width: 2px; border-color: var(--warn);
+             background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
+.act.drop  { color: var(--muted); }
+.act:active { transform: scale(.94); }
+/* 押せない状態は見た目で示すが、**押せなくはしない**。
+   disabled にするとイベントごと消えて、原因が追えなくなる。 */
+.act.off { opacity: .4; }
+
+/*
+  縦持ちのとき。
+  横持ち前提の配分のままだと、作業台が縦を食い尽くして
+  カードが 68px まで細くなる（実機で縦を試して判明）。
+  縦では **カードに面積を回す**。視線はどのみちカードにある（9-6b3）。
+*/
+@media (max-aspect-ratio: 3/4) {
+  #mid { flex: 0 0 46%; }
+  .bench { max-height: none; }
+  #bottom {
+    flex: 1 1 auto; flex-direction: column; gap: 6px;
+    max-height: 340px;
+  }
+  /* 縦並びでは、カード列に付く margin:0 auto が幅の伸長を止めてしまう。
+     フレックスの自動マージンは stretch を無効にする。 */
+  #line { flex: 1 1 auto; align-self: stretch; margin: 0 !important; max-width: none !important; }
+  #bottom .sidebtn { width: 100%; flex: 0 0 auto; padding: 12px 0; flex-direction: row; gap: 8px; }
+  .card .acts { padding: 4px; }
+  .act { padding: 10px 0; font-size: 13px; }
+}
+
+/* 直前の操作の結果。実機で何が起きたのかを、こちらから見えるようにする */
+#log {
+  position: fixed; left: 50%; transform: translateX(-50%); top: 4px; z-index: 55;
+  pointer-events: none; display: flex; flex-direction: column; gap: 2px; align-items: center;
+}
+#log div {
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 3px 9px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--surface); white-space: nowrap;
+}
+#log div.ng { color: var(--bad); border-color: var(--bad); }
+#log div.ok { color: var(--good); border-color: var(--good); }
+#log div.old { opacity: .45; }
+
+/* 使ったカードは即座に次が入る。
+   カード全体を動かすとボタンまで揺れて何が起きたか分からないので、
+   **絵の面だけ**を差し替えるように見せる。0.16秒では速すぎて気づけなかった。 */
+@keyframes dealin {
+  0%   { transform: translateY(26px); opacity: 0; }
+  55%  { opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+.card .face.fresh { animation: dealin .3s cubic-bezier(.2,.9,.3,1); }
+
+/* そのカードをタップすると何が起きるかを、上端に出す */
+/* 中身は当たり判定を持たせない。
+   画像が pointer を取ると、ブラウザ標準の画像ドラッグが始まって
+   pointercancel でフリックが中断される（実機でも起きる） */
+.card .bg, .card .art, .card .tag, .card .taphint {
+  pointer-events: none; -webkit-user-drag: none;
+}
+/* メーカー色の下地。作業台を暗くしたぶん、以前の .22 ではカードだけ白く飛んで見えた。
+   濃くして、5色の判別も同時に上げる。 */
+.card .bg { position: absolute; inset: 0; opacity: .34; }
+.card .art { position: absolute; left: 6%; top: 6%; width: 88%; height: 88%; object-fit: contain; }
+.card .tag {
+  position: absolute; left: 0; right: 0; bottom: 0; text-align: center;
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  padding: 2px 0; color: var(--ink-2);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+.card.gone { opacity: 0; transform: scale(.85); transition: opacity .12s, transform .12s; }
+
+.sidebtn {
+  flex: 0 0 auto; width: clamp(66px, 12vw, 104px);
+  border-radius: 12px; border: 2px solid var(--line); background: var(--surface);
+  color: var(--ink); font-weight: 800; font-size: 13px; line-height: 1.25;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; padding: 4px;
+}
+.sidebtn .sub { font-size: 10px; font-weight: 600; color: var(--muted); }
+.sidebtn:disabled { opacity: .34; }
+
+/* 出撃は **この画面で唯一の決定的な操作**。
+   淡い縁取りだけでは背景に沈み、押せる状態になったことに気付けなかった。
+   撃てるときは塗りつぶし、押せないときは沈める。 */
+.sidebtn.go { border-color: var(--accent); color: var(--accent); }
+.sidebtn.go:not(:disabled) {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  font-size: 15px; box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 55%, #000);
+}
+.sidebtn.go:not(:disabled) .sub { color: color-mix(in srgb, var(--accent-ink) 78%, transparent); }
+.sidebtn.go:not(:disabled):active { transform: translateY(2px); box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 55%, #000); }
+
+/* ---- ロック表示（動けない時間を体感させる） ---- */
+#lockbar {
+  position: absolute; left: 0; right: 0; top: -5px; height: 3px;
+  background: var(--warn); border-radius: 2px; transform-origin: left center;
+  opacity: 0; pointer-events: none;
+}
+
+/* ---- 中央のログ／演出 ---- */
+/* 演出の中身（機体・役名・内訳）。全画面マスク(#burstveil 42)より上、
+   赤フラッシュ(47)より下。ピュアカラーの動画(45)の上に文字だけ出す場合は .onvid で 50 に上げる。 */
+#center {
+  position: fixed; left: 50%; top: 44%; transform: translate(-50%, -50%);
+  pointer-events: none; text-align: center; z-index: 44; width: min(88vw, 560px);
+}
+#burst {
+  font-size: clamp(22px, 5.2vw, 44px); font-weight: 900; letter-spacing: .02em;
+  opacity: 0; transform: scale(.8);
+}
+#burst.show { animation: burst .5s cubic-bezier(.2,.9,.3,1) forwards; }
+@keyframes burst { 0%{opacity:0;transform:scale(.7)} 40%{opacity:1;transform:scale(1.06)} 100%{opacity:1;transform:scale(1)} }
+#burstsub { font-size: 13px; font-weight: 700; color: var(--muted); margin-top: 2px; opacity: 0; }
+#burstsub.show { opacity: 1; }
+
+/* 出撃の瞬間に、組み上がった機体そのものを見せる（5-2 / 5-4）。
+   作業台は部位のまま残す（上書き先を選ぶUIなので、隠してはいけない）。 */
+/* 全画面マスクの上に出すようになったので、機体は大きく見せる（5-4d）。 */
+#burstmecha {
+  display: block; margin: 0 auto 6px; width: auto;
+  height: clamp(120px, 38vh, 420px); object-fit: contain;
+  opacity: 0; transform: scale(.6);
+}
+/* 閃光による差し替え（仕様書 5-4）。
+   出撃の瞬間に画面を白く飛ばし、その裏で「寄せ集め → 機体」を入れ替える。
+   継ぎ目やサイズの不整合を隠すためのもので、演出であると同時に実務でもある。 */
+#flash {
+  position: fixed; inset: 0; z-index: 47; pointer-events: none;
+  background: #fff; opacity: 0;
+}
+/* **敵の攻撃だけ、画面のふちが赤く灼ける。**
+   全面を赤く塗ると盤面が読めなくなるので、中央は開けて周辺だけを染める。
+   「殴られた」ことが、数字を見る前に体で分かるようにするためのもの。 */
+#flash.enemy {
+  background: radial-gradient(ellipse at center,
+              rgba(200,20,20,0) 30%, rgba(190,16,16,.55) 72%, rgba(150,0,0,.92) 100%);
+}
+
+/* 演出中の全画面マスク（5-4d）。
+   ピュアカラーの動画が全画面なので、**他の役の演出も同じ覆いかたに揃える。**
+   ただし一律に真っ暗にするとワンペア（350ms・出撃の38%）でテンポが死ぬので、
+   **濃さを役の強さに比例させる。** 弱い役は薄い幕、強い役はほぼ暗転。 */
+#burstveil {
+  position: fixed; inset: 0; z-index: 42; pointer-events: none;
+  background: #05070a; opacity: 0;
+  transition: opacity .18s ease-out;
+}
+#burstveil.go { opacity: var(--veil, .5); }
+/* ピュアカラー専用の動画（5-4b）。
+   **全画面ではなく、2つの作業台の上に重ねる。**
+   演出中は盤面が止まっているので、そこを塞いでも情報は失われない。
+   逆に HPゲージや残り時間は見えたままにしておきたい。 */
+#burstvid {
+  /* **作業台の枠に入れてはいけない。**
+     もとは #mid（作業台2つの並び）にかぶせていたが、この枠の比率は
+       縦持ち 355×364 = 0.98（ほぼ正方形）／横持ち 792×190 = 4.16（極端に横長）
+     どちらも 16:9（1.78）から遠く、cover なら大きく切れ、contain なら大きく余る。
+     **演出中は盤面が止まっているのだから、枠に押し込める理由が無い。全画面で出す。** */
+  position: fixed; inset: 0; z-index: 45; pointer-events: none;
+  width: 100%; height: 100%; object-fit: contain;
+  opacity: 0; visibility: hidden;
+  background: #05070a;
+  transition: opacity .25s;
+}
+/* 画面が 4:3 より横長（＝横持ちのスマホは 2.0〜2.2）なら、切って埋める。
+   16:9 との差は縦18%ほどで、構図の要は残る。**縦持ちのときだけ帯にする。** */
+@media (min-aspect-ratio: 4/3) {
+  #burstvid { object-fit: cover; }
+}
+/* テスト表示（#taps / #log）は演出中だけ伏せる。切り替えは JS 側（hideTestHud）で行う。 */
+/* テスト表示（入力カウンタ・自己診断・照合バッジ）。
+   **既定では盤面に出さない。** HPゲージと時計の真上に重なって、肝心の数字を潰していた。
+   中身は ⚙ の「テスト表示」から読める。盤面に戻したいときは body.dev を付ける。 */
+#taps, #log, #verify { display: none; }
+body.dev #taps, body.dev #verify { display: block; }
+body.dev #log { display: flex; }
+#taps, #log { transition: opacity .2s; }
+#burstvid.go { opacity: 1; visibility: visible; }
+
+/* 動画が再生できたときだけ、役名を動画の上に出す。
+   静止画の機体は動画と二重になるので引っ込める（動画のほうが機体そのもの）。
+   **再生に失敗した端末では付かない**ので、静止画の演出がそのまま残る。 */
+#center.onvid { z-index: 50; }
+#center.onvid #burstmecha { display: none !important; }
+#center.onvid #burst,
+#center.onvid #burstsub { text-shadow: 0 2px 10px #000, 0 0 26px #000; }
+#center.onvid #burstsub { color: #e8eef5; }
+
+#flash.go { animation: flashOut .34s ease-out forwards; }
+@keyframes flashOut {
+  0%   { opacity: 0; }
+  12%  { opacity: var(--peak, .9); }
+  100% { opacity: 0; }
+}
+/* 端末が「動きを減らす」設定なら、光らせない */
+@media (prefers-reduced-motion: reduce) {
+  #flash.go { animation: none; }
+}
+
+/* 出撃の動き。**光ではなく、絵そのものを動かす。**
+   下から迫り上がって行き過ぎ、着地して溜め、前へ踏み込んで戻る。
+   静止画1枚でも「出てきて殴った」に見えるように、
+   ・迫り上がり（登場）
+   ・着地の行き過ぎと戻し（重さ）
+   ・踏み込みと細かな揺れ（当たった手応え）
+   の3拍で作る。長さは役ごとの演出時間に合わせて JS から渡す。 */
+#burstmecha.show { animation: mechaCharge var(--dur, .5s) cubic-bezier(.2,.9,.3,1) forwards; }
+@keyframes mechaCharge {
+  0%   { opacity: 0; transform: translateY(34%) scale(.66); }
+  18%  { opacity: 1; transform: translateY(-6%) scale(1.10); }   /* 迫り上がって行き過ぎる */
+  30%  { opacity: 1; transform: translateY(2%)  scale(0.97); }   /* 着地して沈む */
+  40%  { opacity: 1; transform: translateY(0)   scale(1.00); }   /* 立つ */
+  56%  { opacity: 1; transform: translateY(0)   scale(1.00) rotate(-1.5deg); } /* 溜め */
+  66%  { opacity: 1; transform: translateY(-2%) scale(1.14) rotate(1deg); }    /* 踏み込み */
+  71%  { opacity: 1; transform: translateY(-2%) scale(1.13) rotate(-1deg); }   /* 揺れ */
+  76%  { opacity: 1; transform: translateY(-1%) scale(1.11) rotate(.6deg); }
+  100% { opacity: 1; transform: translateY(0)   scale(1.00) rotate(0deg); }
+}
+/* 強い役ほど大きく動かす。**光を足すのではなく、動きを足す。**
+   ・振れ幅を大きく（迫り上がりも踏み込みも）
+   ・踏み込みを2回にして、間を持たせる
+   実機の要望「役が強いほど、演出がド派手になるといい」への答え。 */
+#burstmecha.show.big { animation-name: mechaChargeBig; }
+@keyframes mechaChargeBig {
+  0%   { opacity: 0; transform: translateY(60%) scale(.40); }
+  14%  { opacity: 1; transform: translateY(-12%) scale(1.22); }  /* 大きく迫り上がる */
+  24%  { opacity: 1; transform: translateY(5%)   scale(0.92); }  /* 深く沈む */
+  33%  { opacity: 1; transform: translateY(0)    scale(1.02); }
+  44%  { opacity: 1; transform: translateY(0) scale(1.00) rotate(-3deg); }  /* 大きく溜め */
+  53%  { opacity: 1; transform: translateY(-4%) scale(1.26) rotate(2.5deg); } /* 踏み込み1 */
+  58%  { opacity: 1; transform: translateY(-3%) scale(1.20) rotate(-2deg); }
+  63%  { opacity: 1; transform: translateY(-1%) scale(1.06) rotate(1deg); }
+  72%  { opacity: 1; transform: translateY(0) scale(1.00) rotate(-2.5deg); } /* 溜め直す */
+  80%  { opacity: 1; transform: translateY(-5%) scale(1.30) rotate(3deg); }  /* 踏み込み2 */
+  85%  { opacity: 1; transform: translateY(-3%) scale(1.22) rotate(-2deg); }
+  90%  { opacity: 1; transform: translateY(-1%) scale(1.08) rotate(1deg); }
+  100% { opacity: 1; transform: translateY(0)   scale(1.00) rotate(0deg); }
+}
+
+/* 踏み込みに合わせて作業台まで揺らす。世界が揺れたように見せる。
+   #mid は transform を持っていないので、そのまま揺らせる。 */
+#mid.shake { animation: worldShake .5s ease-out; }
+@keyframes worldShake {
+  0%, 100% { transform: translate(0, 0); }
+  12% { transform: translate(-5px, 3px); }
+  26% { transform: translate(5px, -3px); }
+  40% { transform: translate(-4px, -2px); }
+  55% { transform: translate(4px, 2px); }
+  70% { transform: translate(-2px, 1px); }
+  85% { transform: translate(2px, -1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #burstmecha.show, #burstmecha.show.big { animation: mechaFade var(--dur, .5s) ease-out forwards; }
+  @keyframes mechaFade { from { opacity: 0; } to { opacity: 1; } }
+  #mid.shake { animation: none; }
+}
+
+
+/* ---- 設定 / 結果 ---- */
+/* ページが入力を受け取っているか、そのものを見せる。
+   触れば必ず増える。増えないなら、イベントがページまで届いていない。 */
+#taps {
+  position: fixed; left: 6px; top: 6px; z-index: 56; pointer-events: none;
+  font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums;
+  padding: 3px 7px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+}
+
+#gear {
+  position: fixed; right: 6px; top: 6px; z-index: 50;
+  width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink-2); font-size: 15px; cursor: pointer;
+}
+#verify {
+  position: fixed; right: 44px; top: 6px; z-index: 50;
+  font-size: 10px; font-weight: 800; letter-spacing: .04em;
+  padding: 6px 8px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--good);
+}
+#verify.ng { color: var(--accent-ink); background: var(--bad); border-color: var(--bad); }
+
+.sheet {
+  position: fixed; inset: 0; z-index: 60; display: none;
+  background: color-mix(in srgb, var(--ground) 92%, transparent);
+  overflow: auto; padding: 14px;
+}
+.sheet.on { display: block; }
+.sheet .inner { max-width: 640px; margin: 0 auto; }
+.sheet h2 { font-size: 16px; margin: 0 0 2px; }
+.sheet p.note { font-size: 12px; color: var(--muted); margin: 0 0 12px; line-height: 1.6; }
+.grp { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 12px; margin-bottom: 10px; }
+.grp h3 { font-size: 12px; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+.fld { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.fld label { flex: 0 0 40%; font-size: 13px; font-weight: 600; }
+.fld input[type=range] { flex: 1 1 auto; min-width: 0; }
+.fld .v { flex: 0 0 62px; text-align: right; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fld select { flex: 1 1 auto; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-size: 13px; }
+.btnrow { display: flex; gap: 8px; margin-top: 4px; }
+.btn {
+  flex: 1 1 0; padding: 11px; border-radius: 10px; border: 2px solid var(--line);
+  background: var(--surface); color: var(--ink); font-weight: 800; font-size: 14px; cursor: pointer;
+}
+.btn.primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+table.res { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.res td { padding: 5px 2px; border-bottom: 1px solid var(--line-soft); }
+table.res td:last-child { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* 出撃の履歴。プレイ中は機体が消えるので確認できない。ここで後から検算する */
+table.hist { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.hist th { font-size: 10px; color: var(--muted); font-weight: 700; text-align: left;
+                padding: 0 4px 5px; white-space: nowrap; }
+table.hist td { padding: 6px 4px; border-top: 1px solid var(--line-soft); vertical-align: top; }
+table.hist tr.foe { opacity: .5; }
+table.hist td.ix { color: var(--muted); font-size: 10px; white-space: nowrap; }
+table.hist td.ix b { display: block; font-size: 12px; color: var(--ink); }
+table.hist td.chips { white-space: nowrap; }
+table.hist td.h { line-height: 1.35; }
+table.hist td.n { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.hist td.k { font-size: 10px; color: var(--muted); line-height: 1.45; }
+table.hist .s { display: block; font-size: 10px; font-weight: 500; color: var(--muted); }
+/* 背水は役の帯を踏み越えるので、印が無いと逆転に見える */
+table.hist .des { display: block; font-size: 9px; font-weight: 700; font-style: normal;
+                  color: var(--warn, #c2410c); }
+.chip { display: inline-block; width: 15px; height: 15px; border-radius: 4px;
+        margin-right: 3px; vertical-align: middle; }
+/* 副色（主色以外で最も多い色）に輪を付ける。仕様の検討材料 */
+.chip.ring { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+
+/* 図鑑（5-5）。縦が役、横が社。未取得は影絵にする */
+table.book { width: 100%; border-collapse: collapse; }
+table.book th { font-size: 11px; font-weight: 700; color: var(--muted); padding: 2px 4px; }
+table.book th.side { text-align: left; white-space: nowrap; line-height: 1.2; }
+table.book th.side span { display: block; font-size: 9px; font-weight: 500; }
+table.book td {
+  position: relative; text-align: center; padding: 2px;
+  border: 1px solid var(--line-soft); border-radius: 8px;
+}
+table.book td img { display: block; width: 100%; max-width: 96px; margin: 0 auto; aspect-ratio: 1; object-fit: contain; }
+/* 未取得は真っ黒の影絵。形だけ見えて「まだ出していない」が分かる */
+table.book td.off img { filter: brightness(0) opacity(.16); }
+table.book td .n {
+  display: block; font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+table.book td.on .n { color: var(--ink); }
+table.book th span { display: block; font-size: 9px; font-weight: 500; color: var(--muted); }
+table.book td[data-h] { cursor: pointer; }
+table.book td[data-h]:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* 図鑑の詳細。1体だけを大きく出す */
+.one { display: flex; gap: 14px; align-items: flex-start; margin-top: 10px;
+       border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 12px; }
+.one img { width: 40%; max-width: 220px; aspect-ratio: 1; object-fit: contain; flex: none; }
+.one.off img { filter: brightness(0) opacity(.16); }
+.one .ttl { font-size: 17px; font-weight: 900; }
+.one .sub { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.one p { font-size: 13px; line-height: 1.7; margin: 0 0 8px; }
+.one p.unk { color: var(--muted); }
+table.gear { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.gear td { padding: 5px 4px; border-bottom: 1px solid var(--line-soft); }
+table.gear tr.off { color: var(--muted); }
+table.gear td.mk { text-align: right; font-weight: 800; }
+table.gear tr.on td.mk { color: var(--good); }
+#resulttitle { font-size: 24px; font-weight: 900; margin: 0 0 2px; }
+
+/* 最初の1回だけ出す入口。
+   ブラウザは最初の1タップをページへの操作として消費することがあり、
+   実機で「最初のタップが効かない」と出た。ここでそれを吸収する。 */
+/* ID の指定は .sheet.on より強いので、必ず .on 付きで書く。
+   #startgate に直接 display を書くと、閉じても消えなくなる。 */
+/* ここは **店に並べたときの顔** になる画面。ゲーム中の淡い面ではなく、
+   必殺技の動画と同じ **暗い面** で作る。
+
+   背景は世界観そのもの ―― **5社の機体が整備される格納庫。**
+   奥へ伸びるベイが5つあり、それぞれ赤青黄緑紫の作業灯で照らされている。
+   「5社ある」を文字で説明せずに済む。手前の床は暗く空けてあるので、
+   そこに操作を置く。
+
+   旗艦の絵は **起動ごとに1体だけ** 出す。5体並べると遊ぶ前に 1.7MB を
+   読ませることになるが、1体なら 300KB。しかも毎回変わること自体が
+   「5社ある」の説明になる。
+
+   色は変数を使わず直に書く。明るいテーマでも暗いままにしたいので、
+   --ink などを引くと文字が下地と同じ色に沈む。 */
+#startgate { padding: 0; background: #05070a; overflow: hidden; }
+#startgate.on { display: flex; align-items: stretch; justify-content: center; }
+/* 背景。cover なので端は切れる。**切れて困るものを端に置かない**こと */
+#startgate > .bgart {
+  position: absolute; inset: 0; z-index: 0;
+  background: url(mecha/title/bg_bright_c.jpg) center 42% / cover no-repeat;
+}
+/* 文字と背景の間に挟む暗幕。これが無いと格納庫の細部に文字が負ける。
+   上は控えめ、下は真っ黒まで落として、操作の側だけ確実に読ませる。 */
+#startgate > .scrim {
+  position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(180deg,
+    rgba(5,7,10,.40) 0%, rgba(5,7,10,.06) 24%, rgba(5,7,10,.04) 48%,
+    rgba(5,7,10,.62) 68%, rgba(5,7,10,.94) 86%, #05070a 100%);
+}
+.inner.gate {
+  position: relative; z-index: 2;
+  width: 100%; max-width: 960px; margin: 0; text-align: left;
+  display: flex; flex-direction: column; min-height: 0;
+}
+/* 上：ロゴと機体。下：操作。**操作は必ず親指の届く側**に置く */
+.gate .hero {
+  flex: 1 1 auto; min-height: 0; position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  /* ノッチ・パンチホールの下から始める。実機で上端に食い込んでいた */
+  padding: max(20px, calc(env(safe-area-inset-top) + 12px)) 16px 0;
+}
+.gate .logo {
+  flex: 0 1 auto; width: min(80%, 400px); height: auto;
+  /* 背の低い端末では横幅ではなく高さで頭打ちにする。
+     これが無いと、ロゴだけで縦を食って機体が消える。 */
+  max-height: 20vh; object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,.75));
+}
+/* 機体の立ち位置。格納庫の床に立って見えるよう、足元に光だまりを敷く */
+.gate .stand { flex: 1 1 auto; min-height: 0; position: relative; width: 100%;
+               display: flex; align-items: flex-end; justify-content: center; }
+.gate .stand .glow {
+  position: absolute; left: 50%; bottom: 2%; width: 78%; height: 34%;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, var(--co, #2ec4b6) 0%, transparent 72%);
+  opacity: .38;
+}
+.gate .stand .mecha {
+  position: relative; max-width: 78%; max-height: 100%;
+  object-fit: contain; filter: drop-shadow(0 16px 22px rgba(0,0,0,.7));
+}
+.gate .plate {
+  flex: 0 0 auto; padding: 6px 18px max(16px, env(safe-area-inset-bottom));
+  position: relative;
+}
+.gate .who  { font-size: 11px; color: #97a3aa; margin: 0 0 10px; }
+.gate .who i { font-style: normal; font-weight: 800; color: var(--co, #2ec4b6); }
+/* 遊びかたは別ページにしない。3行で足りるものを、隠してはいけない */
+.gate .steps { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.gate .steps li { display: flex; align-items: baseline; gap: 8px; font-size: 12px; line-height: 1.5; color: #c3ccd2; }
+.gate .steps .n {
+  flex: none; width: 17px; height: 17px; border-radius: 5px;
+  background: rgba(255,255,255,.15); color: #fff; font-size: 10px; font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.gate .steps b { color: #fff; font-weight: 800; }
+/* 戦歴は表にしない。横に並ぶ札にすれば、入口が縦に伸びない */
+#gatestats { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+#gatestats .st {
+  display: flex; align-items: baseline; gap: 6px; padding: 4px 9px; border-radius: 7px;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.13);
+}
+#gatestats .st span { font-size: 10px; color: #97a3aa; }
+#gatestats .st b { font-size: 12px; color: #fff; font-variant-numeric: tabular-nums; }
+.btn.big { padding: 16px; font-size: 17px; }
+/* スタート画面のボタンは折り返さない。「ゲームスター／ト」で切れていた */
+#gaterow { margin-top: 0; }
+#gaterow .btn { white-space: nowrap; }
+#gaterow #gobook { flex: 0 0 auto; padding-left: 22px; padding-right: 22px; }
+/* 入口のボタンは **押す絵** にする。
+   ただの塗り四角だと、格納庫の絵の上では「HTMLの部品」に見えてしまう。
+   鋼板を1枚ねじ止めしたつもりで、縁・面・上のハイライト・下の落ち影の
+   4層で組む。色は格納庫の床の安全塗装（琥珀）から取った。 */
+.inner.gate .btn {
+  position: relative; overflow: hidden;
+  border: 2px solid #0e1215; border-radius: 12px; color: #dfe6ea;
+  background: linear-gradient(180deg, #4a555d 0%, #333d44 46%, #232b31 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -2px 0 rgba(0,0,0,.35),
+              0 3px 0 #0d1114, 0 6px 14px rgba(0,0,0,.45);
+  text-shadow: 0 1px 2px rgba(0,0,0,.7);
+}
+.inner.gate .btn.primary {
+  padding: 18px; font-size: 19px; letter-spacing: .06em; color: #241704;
+  border-color: #12161a;
+  background: linear-gradient(180deg,
+    #ffdf95 0%, #f9bd48 17%, #eda017 50%, #c87c09 84%, #a76300 100%);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.8), inset 0 -3px 0 rgba(0,0,0,.26),
+              0 5px 0 #6b3e00, 0 11px 24px rgba(0,0,0,.55);
+  text-shadow: 0 1px 0 rgba(255,255,255,.5);
+}
+/* 両端の警告帯。格納庫の床の縞と同じ意匠をボタンにも通し、
+   「この画面のものだ」と分かるようにする。 */
+.inner.gate .btn.primary::before,
+.inner.gate .btn.primary::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 28px; z-index: 0;
+  background: repeating-linear-gradient(-45deg,
+    rgba(0,0,0,.55) 0 5px, rgba(0,0,0,0) 5px 10px);
+}
+.inner.gate .btn.primary::before { left: 0; }
+.inner.gate .btn.primary::after  { right: 0; }
+/* 図鑑は副ボタン。**同じ格納庫の鋼板だが、塗装は琥珀ではなく素地**という関係で作る。
+   四隅にリベットを打ち、上端にだけ琥珀の細帯を一筋通す。
+   これで「同じ画面のもの」と分かりつつ、押す順番は主ボタンに譲る。 */
+.inner.gate .btn:not(.primary) {
+  padding: 18px 22px;
+  background: linear-gradient(180deg, #5a656d 0%, #3a444b 46%, #283137 100%);
+}
+.inner.gate .btn:not(.primary)::before {
+  content: ""; position: absolute; inset: 4px; border-radius: 8px; pointer-events: none;
+  border: 1px solid rgba(255,255,255,.12);
+  background:
+    radial-gradient(circle at 6px 6px,
+      rgba(255,255,255,.5) 0 1.2px, transparent 1.7px),
+    radial-gradient(circle at calc(100% - 6px) 6px,
+      rgba(255,255,255,.5) 0 1.2px, transparent 1.7px),
+    radial-gradient(circle at 6px calc(100% - 6px),
+      rgba(255,255,255,.5) 0 1.2px, transparent 1.7px),
+    radial-gradient(circle at calc(100% - 6px) calc(100% - 6px),
+      rgba(255,255,255,.5) 0 1.2px, transparent 1.7px);
+}
+.inner.gate .btn:not(.primary)::after {
+  content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, #eda017 28%, #eda017 72%, transparent);
+  opacity: .8;
+}
+.inner.gate .btn > span { position: relative; z-index: 1; }
+/* 押したら実際に沈む。落ち影を削るだけで、板が下がったように見える */
+.inner.gate .btn:active { transform: translateY(3px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 0 0 #0d1114, 0 3px 8px rgba(0,0,0,.5); }
+.inner.gate .btn.primary:active { transform: translateY(5px);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.6), 0 0 0 #6b3e00, 0 4px 10px rgba(0,0,0,.5); }
+.inner.gate .note { margin: 10px 0 0; font-size: 10px; color: #6d7880; }
+/* 背の低い端末では、読ませるものより **押せること** を優先する。
+   遊びかたは初回だけ要るもので、毎回読むものではない。 */
+@media (max-height: 600px) and (orientation: portrait) {
+  .gate .steps li:nth-child(2) { display: none; }
+}
+
+/* 横持ち。**画面は縦で確定した（9-6b4）**が、開発中に横で開くことがあるので
+   崩れないだけの形は残しておく。左に絵、右に操作。 */
+@media (min-aspect-ratio: 4/3) {
+  .inner.gate { flex-direction: row; align-items: stretch; }
+  .gate .hero { flex: 1 1 44%; padding: 10px 8px 10px 16px; }
+  .gate .logo { width: min(96%, 340px); }
+  .gate .plate {
+    flex: 1 1 56%; overflow: auto;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 12px 22px 12px 6px;
+  }
+}
+</style>
+
+<!-- ゲーム中の格納庫。#app の前に置くことで、下に敷かれる -->
+<div id="gamebg"></div>
+
+<div id="app">
+  <div id="top">
+    <div class="hp me" id="hpme">
+      <div class="row"><span class="who">自分</span><span class="num">1400</span></div>
+      <div class="track"><div class="fill"></div></div>
+    </div>
+    <div class="mid"><div id="clock">3:00<span class="sub">のこり</span></div></div>
+    <div class="hp cpu" id="hpcpu">
+      <div class="row"><span class="who">CPU</span><span class="num">1400</span></div>
+      <div class="track"><div class="fill"></div></div>
+    </div>
+  </div>
+
+  <div id="mid">
+    <div class="benchwrap">
+      <!-- 「カードをタップ」はカード上の帯が教えているので重複。
+           長押しのガードだけは他にどこにも出ていないので残す。 -->
+      <div class="cap" id="capme">自分<span class="hint">長押しでガード</span></div>
+      <div class="bench" id="benchme"></div>
+      <div class="handline" id="handme"></div>
+    </div>
+    <div class="benchwrap">
+      <div class="cap" id="capcpu" style="justify-content:flex-end">CPU</div>
+      <div class="bench" id="benchcpu"></div>
+      <div class="handline" id="handcpu"></div>
+    </div>
+
+    <!-- ピュアカラー専用の動画（5-4b）。**2つの作業台の上に重ねる。**
+         演出中は盤面が止まっているので塞いでよいが、HPゲージは見せたままにする。
+         muted と playsinline が無いと iOS は自動再生しない。 -->
+    <video id="burstvid" muted playsinline preload="none"></video>
+  </div>
+
+  <div id="bottom">
+    <div id="line"><div id="lockbar"></div></div>
+    <button class="sidebtn go" id="btnlaunch" disabled>出撃<span class="sub">機体を撃つ</span></button>
+  </div>
+
+  <div id="flash"></div>
+
+  <!-- 演出中の全画面マスク。ピュアカラーの動画と同じ「盤面を覆う」形に、
+       他の役の演出も揃える。濃さは役の強さで変える（弱い役は薄く、テンポを殺さない）。 -->
+  <div id="burstveil"></div>
+
+  <div id="center">
+    <img id="burstmecha" alt="">
+    <div id="burst"></div>
+    <div id="burstsub"></div>
+  </div>
+</div>
+
+<div id="taps">入力 0</div>
+<div id="log"></div>
+<button id="gear" title="設定">⚙</button>
+<div id="verify">照合中</div>
+
+<div class="sheet" id="settings">
+  <div class="inner">
+    <h2>調整値</h2>
+    <p class="note">
+      仕様書 9-5「実機で指を使って決めること」。<strong>触りながら動かして、良いと思った値を控えてください。</strong>
+      ここで決めた値を <code>Core/Balance.cs</code> に反映します。
+    </p>
+
+    <div class="grp">
+      <h3>指ざわり（ここが本題）</h3>
+      <div class="fld"><label>タップ後のロック</label><input type="range" id="s_flick" min="150" max="900" step="25"><span class="v"></span></div>
+      <div class="fld"><label>上書きのロック</label><input type="range" id="s_ow" min="200" max="2000" step="50"><span class="v"></span></div>
+      <div class="fld"><label>カードのタップ</label><select id="s_tap">
+        <option value="fast">速さ優先 — カード全体が引き直し</option>
+        <option value="safe">安全優先 — 装着だけ。引き直しはボタン</option>
+      </select></div>
+      <div class="fld"><label>引き直しのロック</label><input type="range" id="s_disc" min="50" max="800" step="25"><span class="v"></span></div>
+      <div class="fld"><label>役の効き目</label><input type="range" id="s_mul" min="100" max="600" step="25"><span class="v"></span></div>
+      <div class="fld"><label>演出の倍率</label><input type="range" id="s_fx" min="0" max="200" step="10"><span class="v"></span></div>
+      <div class="fld"><label>カードの大きさ</label><input type="range" id="s_card" min="60" max="140" step="5"><span class="v"></span></div>
+    </div>
+
+    <div class="grp">
+      <h3>供給のしかた（骨格が変わります）</h3>
+      <div class="fld"><label>カードの出どころ</label><select id="s_supply">
+        <option value="shared">共有 — 中央に4枚。CPUと取り合う</option>
+        <option value="private">私有 — 自分の4枚と自分の山札（スピードと同じ形）</option>
+      </select></div>
+      <p class="note" style="margin:0">
+        <strong>共有</strong>は、取られたら手に入らない緊張がある代わりに、
+        欲しい札をCPUに攫われる理不尽さが出ます。<br>
+        <strong>私有</strong>は取り合いが消えて自分の速さ勝負になり、
+        相手への妨害（右フリック）だけが干渉として残ります。<br>
+        <strong>切り替えたら「この設定でやり直す」を押してください。</strong>
+        なお <em>調整値の実測はすべて「共有」で取っています</em>（9-2e）。
+      </p>
+    </div>
+
+    <div class="grp">
+      <h3>勝負のながさ</h3>
+      <div class="fld"><label>本拠地ゲージ</label><input type="range" id="s_hp" min="400" max="3000" step="100"><span class="v"></span></div>
+      <div class="fld"><label>制限時間</label><input type="range" id="s_limit" min="60" max="300" step="30"><span class="v"></span></div>
+      <div class="fld"><label>CPU</label><select id="s_cpu">
+        <option value="rush">速攻（役を無視して最速で撃つ）</option>
+        <option value="full">フルハウス狙い（粘る）</option>
+        <option value="pure">ピュアカラー狙い（かなり粘る）</option>
+        <option value="idle">動かない（操作の練習用）</option>
+      </select></div>
+      <div class="fld"><label>進行のしかた</label><select id="s_mode">
+        <option value="endless">テトリス型 — 1本の走り。だんだん速くなる</option>
+        <option value="match">1試合だけ（旧）</option>
+      </select></div>
+      <div class="fld"><label>走り出しの敵</label><input type="range" id="s_start" min="600" max="3000" step="100"><span class="v"></span></div>
+      <div class="fld"><label>行き着く敵</label><input type="range" id="s_floor" min="200" max="1500" step="50"><span class="v"></span></div>
+      <div class="fld"><label>1機ごとの加速</label><input type="range" id="s_step" min="0" max="600" step="20"><span class="v"></span></div>
+      <div class="fld"><label>敵の耐久</label><input type="range" id="s_ehp" min="200" max="1600" step="50"><span class="v"></span></div>
+      <div class="fld"><label>1機倒すと回復</label><input type="range" id="s_heal" min="0" max="100" step="5"><span class="v"></span></div>
+      <div class="fld"><label>CPUの速さ（1試合のとき）</label><input type="range" id="s_cpulag" min="0" max="3000" step="50"><span class="v"></span></div>
+      <p class="note" style="margin:0">
+        右へ動かすほど<strong>遅く</strong>なります。表示は「1体を組み上げるのにかかる時間」。
+        自分が5枚そろえるのに何秒かかっているかは、リザルトの<strong>「平均の組み立て時間」</strong>で分かります。
+        <strong>そこに近い値にすると互角になります。</strong>
+      </p>
+    </div>
+
+    <div class="grp">
+      <h3>ルールの照合</h3>
+      <p class="note" style="margin:0" id="verifynote">—</p>
+    </div>
+
+    <div class="grp">
+      <h3>ゲーム中の背景</h3>
+      <div class="fld">
+        <label>格納庫を敷く</label>
+        <select id="s_bg">
+          <option value="clear">はっきり出す — 入口と同じ格納庫</option>
+          <option value="dim">うっすら出す — かなり沈める</option>
+          <option value="off">出さない — 無地</option>
+        </select>
+      </div>
+      <p class="note" style="margin:0">
+        入口の背景を盤面の下にも敷く。<strong>上段（HPと時計）の裏だけは別に濃くしてある</strong>ので、
+        全体を沈めなくても数字は読める。作業台やカードが見づらくなるようなら「うっすら」か「出さない」に。
+      </p>
+    </div>
+
+    <div class="grp">
+      <h3>テスト表示</h3>
+      <div class="fld">
+        <label>盤面に出す</label>
+        <select id="s_dev">
+          <option value="off">出さない — 入力カウンタと自己診断を隠す</option>
+          <option value="on">出す — 開発中の確認用</option>
+        </select>
+      </div>
+      <p class="note" style="margin:0">
+        <strong>既定は「出さない」。</strong> 入力カウンタと自己診断はHPゲージと時計の真上に重なるので、
+        普段は隠しておく。ここを「出す」にすると盤面に戻る。<br>
+        <span id="devlog">—</span>
+      </p>
+    </div>
+
+    <div class="btnrow">
+      <button class="btn" id="s_reset">仕様書の値に戻す</button>
+      <button class="btn primary" id="s_close">とじて再開</button>
+    </div>
+    <div class="btnrow"><button class="btn" id="s_restart">この設定でやり直す</button></div>
+  </div>
+</div>
+
+<div class="sheet on" id="startgate">
+  <!-- 背景（格納庫）と暗幕。中身より先に置いて、下に敷く -->
+  <div class="bgart"></div>
+  <div class="scrim"></div>
+  <div class="inner gate">
+    <div class="hero" id="hero">
+      <img class="logo" src="mecha/title/logo1.png" alt="ROBO SPEED">
+      <!-- 機体は起動ごとに1体だけ差し替える（paintHero）。src は空で置いておく -->
+      <div class="stand">
+        <div class="glow"></div>
+        <img class="mecha" id="heroimg" alt="">
+      </div>
+    </div>
+    <div class="plate">
+      <!-- 「旗艦 ○○ ほか全5社」は外した。
+           **入口で会社の名前を読ませても、遊ぶ判断には効かない。**
+           どの社が出ているかは、絵と足元の光の色が言っている。 -->
+      <ol class="steps">
+        <li><span class="n">1</span><span>カードをタップして、<b>5つの部位</b>を組む</span></li>
+        <li><span class="n">2</span><span>色の揃いかたで<b>役</b>が決まる。揃うほど威力が上がる</span></li>
+        <li><span class="n">3</span><span><b>出撃</b>で撃つ。倒すほど相手は速くなる</span></li>
+      </ol>
+      <div id="gatestats"></div>
+      <div class="btnrow" id="gaterow">
+        <!-- 文字は縞の上に乗せる。span が無いと ::before/::after に潜る -->
+        <button class="btn primary big" id="gostart"><span>ゲームスタート</span></button>
+        <button class="btn big" id="gobook" style="display:none"><span>図鑑</span></button>
+      </div>
+      <p class="note" id="gatebuild"></p>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="result">
+  <div class="inner">
+    <h2 id="resulttitle">—</h2>
+    <p class="note" id="resultnote"></p>
+    <div class="grp"><table class="res" id="restable"></table></div>
+    <h2 style="margin-top:14px">出撃の履歴</h2>
+    <p class="note">撃つと機体は消えるので、プレイ中には確認できません。ここで後から検算してください。輪が付いた色が<b>副色</b>（主色以外で最も多い色）です。</p>
+    <div class="grp" id="histgrp"></div>
+    <div class="btnrow">
+      <button class="btn primary" id="r_again">もう一度</button>
+      <button class="btn" id="r_book">図鑑</button>
+      <button class="btn" id="r_settings">調整値をいじる</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="catalog">
+  <div class="inner">
+    <h2>図鑑</h2>
+    <p class="note" id="bookcount"></p>
+    <div class="grp" id="bookgrid"></div>
+    <div class="btnrow">
+      <button class="btn primary" id="b_close">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   1. ルール定数 — Core/Balance.cs の写し
+   ここを勝手に変えないこと。変えるなら Balance.cs と両方を直す。
+   ========================================================================= */
+
+const HAND = { OnePair:0, TwoPair:1, Three:2, FullHouse:3, Prism:4, Four:5, Pure:6 };
+const HAND_NAME = ["ワンペア","ツーペア","スリーカード","フルハウス","プリズム","フォーカード","ピュアカラー"];
+
+// 仕様書 4-1 の組合せ数。起動時にこの表と全数照合する。
+const HAND_EXPECT = [1200, 900, 600, 200, 120, 100, 5];
+
+const SPEC = {
+  handMultiplier: [1.00, 1.11, 1.26, 1.53, 1.53, 1.75, 2.50],
+  // 演出時間。**両者が止まるので勝敗には効かない**（6-4）。純粋に見せ場と息継ぎ。
+  //
+  // 実機で「演出でチョット休める感じが望ましい。役が強いほど、演出がド派手になるといい」。
+  // 200msは瞬きで、休めない。**下は 350ms まで上げ、上は 4000ms まで伸ばす。**
+  // 組み立てが10秒かかるゲームで、出撃の一瞬だけが息をつく場所になる。
+  //
+  // 弱い役を伸ばしすぎるとテンポが死ぬ（出撃の67%がワンペア・ツーペア）。
+  // 350ms × 21回 ＝ 走り全体で3秒ぶんしか増えないので、そこは許容範囲。
+  effectMs:       [350, 400, 700, 1000, 2200, 2200, 4000],
+  reloadMs:       [1600, 1400, 1100, 800, 700, 600, 400],
+  baseHp: 1400,
+  matchLimitMs: 180000,
+  flickMs: 400,
+  overwriteLockMs: 700,
+  guardCoefficient: 0.10,
+  guardReleaseLagMs: 700,
+  guardRequiresComplete: true,
+  desperationThreshold: 0.30,
+  desperationMultiplier: 1.30,
+  supplyLineSize: 4,
+  deckCopies: 2,
+};
+
+// 触って決める側の値。SPEC を初期値にして、設定画面で動かす。
+const CFG = {
+  flickMs: SPEC.flickMs,
+  overwriteLockMs: SPEC.overwriteLockMs,
+  // 1枚だけ捨てて引き直す対価。
+  //
+  // 当初はパージの単価と同額（800ms ÷ 4枚 = 200ms）にしたが、
+  // **同じ値段で狙った1枚だけ捨てられるなら、パージを使う理由が無い。**
+  // パージが完全に劣位の選択肢になっていた（実機で指摘）。
+  //
+  // 1枚あたりを割高にすると、まとめ買いとしてのパージが生きる。
+  //   4枚とも要らない → パージ 800ms が得
+  //   1〜2枚だけ要らない → 1枚捨てが得
+  discardMs: 280,
+  // 埋まっている部位のカードをタップしたときの扱い。
+  //   fast … カード全体が引き直し。押しやすいが、付けるつもりで捨てることがある
+  //   safe … 何もしない。誤爆しないが、毎回ボタンを狙う
+  tapMode: "fast",
+  // 役倍率の傾き。1.0 が 9-2d の表そのまま。部位破壊を入れた分だけ立てる必要がある。
+  mulScale: 3.0,
+ 
+  fxScale: 100,          // 演出時間の倍率（%）。0にすると演出を飛ばせる
+  cardScale: 100,        // カードの大きさ（%）
+  baseHp: SPEC.baseHp,
+  matchLimitSec: SPEC.matchLimitMs / 1000,
+
+  // ---- テトリス型の走り（v1.8）----
+  // ステージで区切らず、1本の走りの中でCPUがだんだん速くなる。
+  // 序盤は役を狙う余裕があり、終盤は速さ勝負になる。負けたら終わり。
+  endless: true,
+  startLagMs: 2000,   // 走り出しのCPU（組み立て12.0秒）
+  floorLagMs: 300,    // 行き着く先のCPU（組み立て3.5秒）。500=4.5秒だと7機目で加速が止まり、
+                      // そこから先が平地になる。実測で平地18%→6%（9-6d）
+  stepLagMs: 220,     // 1機倒すごとに詰める量（段の高さ）
+  healOnKill: 35,     // 1機倒すごとに戻る本拠地ゲージ（%）
+  // 敵の耐久は自分と別枠にする。同じ1400だと1機倒すのに2分かかり、
+  // 「節目」が来なさすぎる。テトリスの1列消しに当たる手応えを短い間隔で出す。
+  enemyHp: 700,
+  cpu: "rush",
+  // CPUが1手ごとに置く「考える時間」。実際の間隔は フリック時間 + これ。
+  //
+  // 250ms にしていたら実機で「早過ぎる」と出た。当然で、
+  // 共有ラインをやめた（9-5c）ことでCPUは一度も邪魔されなくなり、
+  // 400+250=650ms × 5枚 = **3.3秒で1体**組み上がる。
+  // 人間が4枚を読んで押す速さではない。
+  cpuLagMs: 900,
+  cpuJitter: true,       // 一定間隔だと機械的すぎるので、毎回ばらつかせる
+
+  // ---- 妨害は v1.7 で廃止した ----
+  //
+  // 「邪魔（相手の作業台へ送る）」は、共有ラインのとき
+  //   (1) そのカードを相手に渡さない  (2) 相手に違う色を混ぜる
+  // の2つの効果があった。私有ライン（9-5c）にした時点で (1) が消え、
+  // 残った (2) は **相手の空きを1つ埋めてあげる行為** になった。
+  // 1スロットは 1.5〜2.7秒の価値。役が1段下がる損より大きい＝贈り物だった。
+  //
+  // 相手を後退させる役目は **攻撃による部位破壊** に一本化する。
+  // true=各自が自分の4枚を持つ（既定）/ false=中央の4枚を取り合う
+  //
+  // 当初は共有ラインにしていたが、実機で触って却下になった。
+  //   「スピードというよりも百人一首みたいになってる」
+  //   「ドラッグしてても取られるのはモヤっとする」
+  // 共有の場から取り合う形は、スピードではなく**かるた**の手触りになる。
+  privateLines: true,
+
+  // 盤面の下に格納庫を敷くか（入口と同じ絵）。
+  //   clear … はっきり出す（既定）。地の色を56%かぶせる
+  //   dim   … うっすら出す。78%まで沈める
+  //   off   … 無地
+  // 一律84%で沈めていたときに実機で「ちょっと暗い」と言われたので、
+  // 全体を薄くし、**文字が直に乗る上段の裏だけ**を別に濃くした。
+  gameBg: "clear",
+};
+
+const MAKERS = ["レッド","ブルー","イエロー","グリーン","パープル"];
+
+/**
+ * 5社の名前。**色 ＋ 武器 ＋ 業種** の4文字で揃えてある。
+ * 名前を見れば技が分かるが、**プレイ中の識別は色のまま**にする。
+ * 名前は図鑑（5-5）だけで効かせて、覚える負担を増やさない。
+ */
+const MAKER_NAME = ["赤刃工業","青砲重工","黄砕建機","緑鎚製鋼","紫錐精機"];
+const MAKER_READ = ["せきじん","せいほう","こうさい","りょくつい","しすい"];
+/**
+ * 5社の説明。
+ *
+ * **5つとも文章の型を変えてある。** 最初に書いたときは
+ * 「○○の会社。〜が得意」で5つとも揃ってしまい、実機から
+ * 「5社とも説明が似通ってるのが気になる」と指摘された。
+ * 業種と得意技を並べるだけだと、どうしても同じ形になる。
+ *
+ * 型を散らした：社訓／工程の細部／現場の口癖／転向の経緯／言わないこと。
+ * **何が得意かではなく、どういう考えで作っているかを書く。**
+ */
+const MAKER_DESC = [
+  "「斬れなければ意味がない」を百三十年言い続けている。他社が装甲を厚くした年も、この社だけは刃を長くした。振り抜くまでの隙は、直す気がないらしい。",
+  "砲身の内側を磨く工程だけで七日かける。一撃の重さは五社で最も軽いが、撃ち終えてから次を構えるまでが最も短い。数で押す思想。",
+  "もとはビルを壊す会社で、今も自分たちを兵器屋だと思っていない。「まとめて崩したほうが早い」という現場の口癖が、そのまま設計になった。",
+  "装甲板を作っていた会社が、あるとき「殴ったほうが早い」と気づいた。硬い物で硬い物を潰す、それだけ。倒すのではなく、動けなくして終わらせる。",
+  "時計を作っていた頃の設備で、今も錐を削っている。厚さも硬さも関係なく、一点だけを通す。カタログには寸法しか書いていない。",
+];
+
+/**
+ * 旗艦（ピュアカラー）だけの説明。**0.16%でしか見られないので、大げさに書く。**
+ *
+ * > 特にピュアカラーの文章は大げさなモノで良いし、
+ * > 実際のゲームでは現れない嘘を混ぜても良い。
+ *
+ * ゲーム中には現れない設定を混ぜてある。**5マスぶんだけの読み物**として置く。
+ */
+const FLAG_DESC = [
+  "社の刀鍛冶が生涯に一度だけ打つとされる一振りを佩いている。抜かれた記録は三度、いずれも戦場そのものが残らなかった。炎は装甲ではなく、そこにあった時間を焼くという。",
+  "胸に、百年ぶんの砲身研究を畳み込んだ収束炉を抱いている。放たれた光は地平まで一直線に届き、通り道の地図は書き直された。撃てるのは一度だけだと社は言うが、記録には二度目がある。",
+  "弾倉の数を数えた者はいない。設計図には「入るだけ」とだけ書かれている。一斉射のあと、その区画は測量からやり直された。壊すためではなく、更地にするための機体。",
+  "鎖の一環ごとに、全工場の刻印が入っている。振り抜かれた鉄球が的を外したことはなく、当たった物が残ったこともない。たいてい、地面のほうが先に割れる。",
+  "四基の錐は、それぞれ別の職人が別の工場で、互いを知らないまま削ったものだという。放たれると音より先に着く。何を貫いたのかは、貫かれた側にしか分からない。",
+];
+
+/** グレード（役）の説明。会社 × グレードの掛け合わせで35通りの説明になる。 */
+const GRADE_NAME = ["ポンコツ","作業用","試作品","量産型","異形","中堅","旗艦"];
+const GRADE_DESC = [
+  "間に合わせで組んだ機体。動くだけまし、という状態で戦場に出される。",
+  "本来は現場で働く機体。戦うために作られてはいないが、頑丈さは本物。",
+  "装甲が半分しか付いていない試験機。性能を測るために出される。",
+  "正式に採用された標準機。特別な所は無いが、確実に仕事をする。",
+  "五社の部品を溶接でつないだ機体。誰も設計していないのに、なぜか強い。",
+  "実戦を重ねた機体。片側に大きな武装を積み、扱いは荒いが頼りになる。",
+  "その社の全てを注ぎ込んだ一機。滅多に組み上がらない。",
+];
+
+/** 副色（手の武器）と第三色（背中の装備）の呼び名。 */
+const HAND_GEAR = ["刃","砲","散弾","鎚","錐"];
+const BACK_GEAR = ["予備刃","砲弾","弾倉","増加装甲","針ラック"];
+const MAKER_VAR = ["--m0","--m1","--m2","--m3","--m4"];
+const SLOTS = ["頭","胸","腰","腕","脚"];
+const SLOT_IMG = ["mecha/m_head.png","mecha/m_torso.png","mecha/m_waist.png","mecha/m_arm.png","mecha/m_leg.png"];
+
+// Core/SpecialMoves.cs の写し
+//
+// ---- 基礎威力の幅を狭めた理由（実機ログ 22出撃・243秒）----
+//
+// 旧値は 80〜130 の **1.63倍** 開いていた。役1段の差は ×1.33 しかないので、
+// **色の差が役の差を食っていた**。実機のリザルトにそのまま出た。
+//
+//   自1  フルハウス（赤・斬撃130）337   ＞  自12 フォーカード（緑・打撃100）325
+//   自8  ツーペア  （赤・斬撃130）173   ＞  自11 スリーカード（黄・拡散弾90）160
+//   自17 ワンペア  （紫・貫通105）105   ≒  自19 ツーペア  （青・砲撃 80）106
+//   自1  フルハウス（赤）337  対  自13 フルハウス（青）207 ＝ 同じ役で1.63倍
+//
+// 役を1段上げても色が悪ければ弱くなる状態で、これでは「役を狙う」判断が成立しない。
+// 設計上は装填時間（赤+400 / 青-400）で釣り合わせるはずだったが、
+// **組み立てが実測10.7秒**なので ±400ms は1周期の3%にしかならず、機能していなかった。
+// 撃つと機体が消えるので「連射で取り返す」状況自体が存在しない。
+//
+// 基準：**色による威力差は、役1段（×1.33）より小さくする。**
+// 新値の幅は 115÷95 = **1.21倍**。全7役の境目を検算して逆転はゼロ（verifyLadder）。
+//
+// 色の個性は威力ではなく **装填・部位破壊・貫通** の側に置く。
+const MOVES = [
+  { maker:0, name:"斬撃",   dmg:115, reload:+400, strip:false, pierce:0.00 },
+  { maker:1, name:"砲撃",   dmg: 95, reload:-400, strip:false, pierce:0.00 },
+  { maker:2, name:"拡散弾", dmg: 98, reload:   0, strip:true,  pierce:0.00 },
+  { maker:3, name:"打撃",   dmg:100, reload:   0, strip:false, pierce:0.50 },
+  { maker:4, name:"貫通",   dmg:105, reload:-150, strip:false, pierce:0.25 },
+];
+
+/**
+ * プリズム（5社が1枚ずつ）専用の攻撃。
+ *
+ * v1.7 で必殺技の選択をやめたため、「選択肢が5つある」という
+ * プリズムの利点（旧 6-2c）は消えた。代わりに **専用の連携攻撃** を持たせる。
+ * 全社の機構が乗るので、部位破壊（拡散弾と同じ2つ）と貫通を併せ持つ。
+ */
+// 威力は **色の幅の中での位置** を保つ。旧: 120（幅80〜130 の8割の位置）
+//                                        新: 111（幅95〜115 の8割の位置）
+// 幅を狭めたのに120のままだと、プリズムだけが全色より強くなってしまう。
+const PRISM_MOVE =
+  { maker:-1, name:"全機連携", dmg:111, reload:-200, strip:true, pierce:0.25 };
+
+/* =========================================================================
+   2. 役判定 — Core/HandEvaluator.cs と同じ規則
+   ========================================================================= */
+
+function evalHand(makers) {
+  const c = [0,0,0,0,0];
+  for (let i = 0; i < 5; i++) { c[makers[i]]++; }
+  const s = c.slice().sort((a,b) => b - a);
+  if (s[0] === 5) { return HAND.Pure; }
+  if (s[0] === 4) { return HAND.Four; }
+  if (s[0] === 3) { return s[1] === 2 ? HAND.FullHouse : HAND.Three; }
+  if (s[0] === 2) { return s[1] === 2 ? HAND.TwoPair : HAND.OnePair; }
+  return HAND.Prism;                       // 1-1-1-1-1
+}
+
+function distinctMakers(makers) {
+  const seen = [false,false,false,false,false];
+  let n = 0;
+  for (let i = 0; i < 5; i++) { if (!seen[makers[i]]) { seen[makers[i]] = true; n++; } }
+  return n;
+}
+
+/**
+ * 5^5 = 3,125通りを全数走査し、仕様書 4-1 の組合せ数と突き合わせる。
+ * C# 側の `dotnet run -- verify` と同じ検査。ここが通れば写し間違いは無い。
+ */
+/**
+ * 役の階段が色に食われていないかを検算する。
+ *
+ * 実機ログで「フルハウス赤337 ＞ フォーカード緑325」のような逆転が出た。
+ * ここが通れば **役を1段上げれば、色に関わらず必ず強くなる** が保証される。
+ * mulScale を ⚙ で動かすと境目が変わるので、毎回この検査を通すこと。
+ *
+ * プリズムはフルハウスと同格（同じ倍率）なので、階段の検査からは外す。
+ */
+function verifyLadder() {
+  const band = [];                               // 役ごとの [最小, 最大]
+  for (let h = 0; h < 7; h++) {
+    let lo = Infinity, hi = 0;
+    for (const m of MOVES) {
+      const d = m.dmg * mul(h);
+      if (d < lo) { lo = d; }
+      if (d > hi) { hi = d; }
+    }
+    band.push([lo, hi]);
+  }
+
+  const bad = [];
+  const order = [0, 1, 2, 3, 5, 6];              // プリズム(4)を飛ばす
+  for (let i = 1; i < order.length; i++) {
+    const lower = band[order[i - 1]], upper = band[order[i]];
+    if (lower[1] >= upper[0]) {
+      bad.push(HAND_NAME[order[i - 1]] + "の最大 " + Math.round(lower[1])
+             + " ≧ " + HAND_NAME[order[i]] + "の最小 " + Math.round(upper[0]));
+    }
+  }
+  return bad;
+}
+
+function verifyHands() {
+  const got = [0,0,0,0,0,0,0];
+  // 図鑑のエントリ数。役ごと（5-2b の表）。sim の CheckCatalog と同じ検査。
+  const ENTRY_EXPECT = [60, 60, 60, 20, 60, 20, 5];
+  const entry = [];
+  const body = [];
+  for (let i = 0; i < 7; i++) { entry.push(new Set()); body.push(new Set()); }
+
+  const h = [0,0,0,0,0];
+  for (h[0]=0; h[0]<5; h[0]++)
+  for (h[1]=0; h[1]<5; h[1]++)
+  for (h[2]=0; h[2]<5; h[2]++)
+  for (h[3]=0; h[3]<5; h[3]++)
+  for (h[4]=0; h[4]<5; h[4]++) {
+    const hd = evalHand(h);
+    got[hd]++;
+    const p = primaryMakerOf(h);
+    entry[hd].add(p + "/" + subMakerOf(h) + "/" + thirdMakerOf(h));
+    body[hd].add(p);
+  }
+
+  const bad = [];
+  let total = 0, bodies = 0, entries = 0;
+  for (let i = 0; i < 7; i++) {
+    total += got[i];
+    bodies += body[i].size;
+    entries += entry[i].size;
+    if (got[i] !== HAND_EXPECT[i]) { bad.push(HAND_NAME[i] + " " + got[i] + "≠" + HAND_EXPECT[i]); }
+    if (body[i].size !== 5) { bad.push("本体 " + HAND_NAME[i] + " " + body[i].size + "≠5"); }
+    if (entry[i].size !== ENTRY_EXPECT[i]) {
+      bad.push("図鑑 " + HAND_NAME[i] + " " + entry[i].size + "≠" + ENTRY_EXPECT[i]);
+    }
+  }
+  if (total !== 3125) { bad.push("合計 " + total + "≠3125"); }
+  if (bodies !== 35) { bad.push("本体 合計 " + bodies + "≠35"); }
+  if (entries !== 285) { bad.push("図鑑 合計 " + entries + "≠285"); }
+  return bad;
+}
+
+/* =========================================================================
+   3. 山札と共有ライン — Core/SupplyLine.cs の写し
+   ========================================================================= */
+
+class SupplyLine {
+  constructor(size, copies) {
+    this.size = size;
+    this.draw = [];
+    this.discard = [];
+    this.line = [];
+    this.recycles = 0;
+    for (let c = 0; c < copies; c++) {
+      for (let m = 0; m < 5; m++) {
+        for (let s = 0; s < 5; s++) { this.draw.push({ maker:m, slot:s }); }
+      }
+    }
+    this._shuffle(this.draw);
+    for (let i = 0; i < size; i++) { this.line.push(this._drawOne()); }
+  }
+  _shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+  }
+  _drawOne() {
+    if (this.draw.length === 0) {
+      if (this.discard.length === 0) {
+        for (let m = 0; m < 5; m++) { for (let s = 0; s < 5; s++) { this.draw.push({ maker:m, slot:s }); } }
+      } else {
+        this.draw = this.discard; this.discard = [];
+      }
+      this._shuffle(this.draw);
+      this.recycles++;
+    }
+    return this.draw.pop();
+  }
+  peek(i) { return this.line[i]; }
+  take(i) { const c = this.line[i]; this.line[i] = this._drawOne(); return c; }
+  put(c) { this.discard.push(c); }
+}
+
+/* =========================================================================
+   4. 作業台 — Core/Workbench.cs の写し
+   ========================================================================= */
+
+class Bench {
+  constructor() { this.clearNoDiscard(); }
+  clearNoDiscard() {
+    this.maker = [0,0,0,0,0];
+    this.filled = [false,false,false,false,false];
+    this.overwritten = [false,false,false,false,false];
+  }
+  get count() { return this.filled.reduce((n,f) => n + (f?1:0), 0); }
+  get complete() { return this.count === 5; }
+  canOverwrite(slot) { return this.filled[slot] && !this.overwritten[slot]; }
+  install(card) {
+    if (this.filled[card.slot]) { return false; }
+    this.maker[card.slot] = card.maker;
+    this.filled[card.slot] = true;
+    return true;
+  }
+  overwrite(card) {
+    if (!this.canOverwrite(card.slot)) { return null; }
+    const removed = { maker:this.maker[card.slot], slot:card.slot };
+    this.maker[card.slot] = card.maker;
+    this.overwritten[card.slot] = true;
+    return removed;
+  }
+  hand() { return this.complete ? evalHand(this.maker) : -1; }
+  clear(line) {
+    for (let i = 0; i < 5; i++) { if (this.filled[i] && line) { line.put({ maker:this.maker[i], slot:i }); } }
+    this.clearNoDiscard();
+  }
+  countMakers() {
+    const c = [0,0,0,0,0];
+    for (let i = 0; i < 5; i++) { if (this.filled[i]) { c[this.maker[i]]++; } }
+    return c;
+  }
+}
+
+/* =========================================================================
+   5. ダメージ計算 — Core/CombatResolver.cs の写し
+   ========================================================================= */
+
+/**
+ * 実際に使う役倍率。
+ *
+ * 表の値（9-2d で決めた ×1.00〜2.50）は **部位破壊が無かった頃の較正値**。
+ * 部位破壊を入れたことで「長く組むほど殴られて壊される」ようになり、
+ * 良い役を狙う打ち手が一方的に不利になった（対 速攻で 3% しか勝てない）。
+ *
+ * 傾きを立てると「遅いが上手い」が成立する。実測（各100戦・対 速攻CPU）:
+ *   1倍 … 速攻25% / フル狙い 3%
+ *   3倍 … 速攻35% / フル狙い40%   ← 釣り合う
+ *   4倍 … 速攻39% / フル狙い60%
+ */
+function mul(hand) {
+  return 1 + (SPEC.handMultiplier[hand] - 1) * CFG.mulScale;
+}
+
+function resolveAttack(atkHand, move, atkHpRatio, defGuarding, defComplete, defHand) {
+  let dmg = move.dmg * mul(atkHand);
+  // 背水は役の帯を踏み越える。ワンペア115が×1.3で150になり、ツーペア(126〜153)に
+  // 食い込む。**意図した例外**なので verifyLadder では見ないが、
+  // 履歴表では印を出さないと「階段が壊れている」と読めてしまう。
+  const desperate = atkHpRatio <= SPEC.desperationThreshold;
+  if (desperate) { dmg *= SPEC.desperationMultiplier; }
+  if (defGuarding) {
+    const defMul = defComplete ? mul(defHand) : 1.0;
+    let reduced = dmg * SPEC.guardCoefficient / defMul;
+    if (move.pierce > 0) { reduced = reduced + (dmg - reduced) * move.pierce; }
+    dmg = reduced;
+  }
+  const reload = Math.max(100, SPEC.reloadMs[atkHand] + move.reload);
+  return { damage: dmg, reloadMs: reload, effectMs: SPEC.effectMs[atkHand],
+           guarded: defGuarding, desperate: desperate };
+}
+
+/**
+ * 攻撃は**機体の組み合わせで決まる**。プレイヤーには選ばせない（v1.7）。
+ *
+ * 選択画面を挟むと、そのたびに両者が止まってテンポが落ちる。
+ * 組み合わせで決まるなら、**組む段階での選択がそのまま技の選択**になる。
+ *
+ *   ・最も多く使われているメーカーの技（そのメーカーが機体を支配している）
+ *   ・同数で並んだら、胸（コア）のメーカーを優先
+ *   ・5社が1枚ずつ（プリズム）は専用の連携攻撃
+ */
+function moveOf(bench) {
+  const c = bench.countMakers();
+
+  let top = 0;
+  for (let i = 1; i < 5; i++) { if (c[i] > c[top]) { top = i; } }
+  if (c[top] === 1) { return PRISM_MOVE; }     // 全部1枚ずつ＝プリズム
+
+  // 同数で並んだメーカーを集め、胸のメーカーが含まれていればそれを使う
+  const tied = [];
+  for (let i = 0; i < 5; i++) { if (c[i] === c[top]) { tied.push(i); } }
+  if (tied.length > 1) {
+    const core = bench.maker[1];               // 1 = 胸
+    if (tied.indexOf(core) >= 0) { return MOVES[core]; }
+  }
+  return MOVES[tied[0]];
+}
+
+/**
+ * 主色（技を決めている色）。moveOf と同じ判定の、色だけを返す版。
+ * プリズム（全部1枚ずつ）は主色なしで -1。
+ */
+function primaryMakerOf(makers) {
+  const c = [0,0,0,0,0];
+  for (let i = 0; i < 5; i++) { c[makers[i]]++; }
+  let top = 0;
+  for (let i = 1; i < 5; i++) { if (c[i] > c[top]) { top = i; } }
+  // プリズム（全部1枚ずつ）でも -1 にしない。全色同数なので胸の色が主色になる。
+  // これで図鑑のプリズムにも5つの型ができる（5-2b）。
+  const tied = [];
+  for (let i = 0; i < 5; i++) { if (c[i] === c[top]) { tied.push(i); } }
+  if (tied.length > 1) {
+    const core = makers[1];                    // 1 = 胸
+    if (tied.indexOf(core) >= 0) { return core; }
+  }
+  return tied[0];
+}
+
+/**
+ * 副色 ＝ 主色以外で最も多く使われている色。同数で並んだら特定できないので無し。
+ *
+ * 現在は **どこにも使っていない情報**。リザルトで見せるのは、
+ * 「フルハウスのペアの色に効果を持たせる」案を実データで検討するため。
+ * この規則だと副色が立つのは次の3つだけになる。
+ *
+ *   ツーペア   2-2-1 … 胸でないほうのペア
+ *   フルハウス 3-2   … ペア
+ *   フォーカード 4-1 … 1枚だけの色
+ *
+ * ワンペア(2-1-1-1)・スリーカード(3-1-1) は1枚の色が並ぶので無し、
+ * ピュアカラーは他の色が無く、プリズムは主色が無い。
+ */
+/**
+ * 順位 rank の色（1 ＝ 副色、2 ＝ 第三色）。残っていなければ -1。
+ * Core/SpecialMoves.cs の NthMakerOf と同じ規則。
+ *
+ * 同数で並んだら **部位の順（頭・胸・腰・腕・脚）で先に現れた色**を採る。
+ * v1.8 の「同数なら無し」だと図鑑が80エントリにしかならなかった。
+ * 部位順で解くと125、第三色まで使うと285（5-2b）。
+ */
+function nthMakerOf(makers, rank) {
+  const c = [0,0,0,0,0];
+  for (let i = 0; i < 5; i++) { c[makers[i]]++; }
+  const used = [false,false,false,false,false];
+  used[primaryMakerOf(makers)] = true;
+
+  let pick = -1;
+  for (let r = 1; r <= rank; r++) {
+    let top = -1;
+    for (let i = 0; i < 5; i++) {
+      if (used[i]) { continue; }
+      if (top < 0 || c[i] > c[top]) { top = i; }
+    }
+    if (top < 0 || c[top] === 0) { return -1; }
+
+    pick = top;
+    let tied = 0;
+    for (let i = 0; i < 5; i++) { if (!used[i] && c[i] === c[top]) { tied++; } }
+    if (tied > 1) {
+      for (const m of makers) { if (!used[m] && c[m] === c[top]) { pick = m; break; } }
+    }
+    used[pick] = true;
+  }
+  return pick;
+}
+
+/* =========================================================================
+   図鑑（仕様書 5-5）
+   =========================================================================
+
+   エントリ ＝（役 × 主色 × 副色 × 第三色）。全数走査で **285通り**。
+   本体は 役 × 主色 の 35型で、武器（副色）と背中（第三色）が組み合わさる。
+
+   **持つのはフラグだけ。** 285ビット＝36バイトなので、保存の容量は問題にならない。
+   ここでは 0/1 の285文字にして localStorage に置く（人が見て確かめられる形）。
+
+   注意：localStorage は消えることがある。
+     ・サイトデータの削除、プライベートブラウズ
+     ・**iOS Safari は7日間アクセスが無いと自動で消す**
+     ・URL の IP やポートが変わると別の保存先になる
+   本番（Unity）では PlayerPrefs かセーブファイルにすること。 */
+
+const BOOK_KEY = "robospeed.book.v1";
+const BOOK = { index: new Map(), keys: [], seen: null };
+
+function bookKeyOf(hand, p, s2, s3) { return hand + "/" + p + "/" + s2 + "/" + s3; }
+
+/** 全3,125通りを走査して、成立する285件に通し番号を振る。起動時に1回だけ。 */
+function buildCatalog() {
+  const h = [0,0,0,0,0];
+  const set = new Set();
+  for (h[0]=0; h[0]<5; h[0]++)
+  for (h[1]=0; h[1]<5; h[1]++)
+  for (h[2]=0; h[2]<5; h[2]++)
+  for (h[3]=0; h[3]<5; h[3]++)
+  for (h[4]=0; h[4]<5; h[4]++) {
+    set.add(bookKeyOf(evalHand(h), primaryMakerOf(h), subMakerOf(h), thirdMakerOf(h)));
+  }
+  BOOK.keys = Array.from(set).sort();
+  BOOK.keys.forEach((k, i) => BOOK.index.set(k, i));
+  BOOK.seen = new Uint8Array(BOOK.keys.length);
+
+  try {
+    const raw = localStorage.getItem(BOOK_KEY);
+    if (raw && raw.length === BOOK.keys.length) {
+      for (let i = 0; i < raw.length; i++) { BOOK.seen[i] = raw[i] === "1" ? 1 : 0; }
+    }
+  } catch (e) { /* プライベートブラウズ等。記録できないだけで遊べる */ }
+}
+
+function bookSave() {
+  try { localStorage.setItem(BOOK_KEY, Array.from(BOOK.seen).join("")); } catch (e) {}
+}
+
+/** 出撃した機体を記録する。**初めてなら true**（結果画面で「新規」に数える）。 */
+function bookRecord(makers) {
+  const k = bookKeyOf(evalHand(makers), primaryMakerOf(makers),
+                      subMakerOf(makers), thirdMakerOf(makers));
+  const i = BOOK.index.get(k);
+  if (i === undefined || BOOK.seen[i]) { return false; }
+  BOOK.seen[i] = 1;
+  bookSave();
+  return true;
+}
+
+function bookCount() {
+  let n = 0;
+  for (let i = 0; i < BOOK.seen.length; i++) { n += BOOK.seen[i]; }
+  return n;
+}
+
+/* ---- 戦歴 ----
+   走りをまたいで残す記録。図鑑と同じ localStorage に置く。
+     ・最高撃破数        … どこまで行けたか
+     ・最速の組み立て    … 1機を最も速く組めたとき。**判断の速さ**そのもの
+     ・平均の組み立て    … 通算。速くなっているかが分かる
+   組み立て時間は出撃ごとに記録する（走りの途中で閉じても残るように）。 */
+
+const STAT_KEY = "robospeed.stats.v1";
+const STATS = { bestKills: 0, fastestMs: 0, totalBuildMs: 0, launches: 0 };
+
+function statsLoad() {
+  try {
+    const raw = localStorage.getItem(STAT_KEY);
+    if (!raw) { return; }
+    const o = JSON.parse(raw);
+    for (const k of Object.keys(STATS)) {
+      if (typeof o[k] === "number" && isFinite(o[k])) { STATS[k] = o[k]; }
+    }
+  } catch (e) { /* 壊れていたら初期値のまま遊べる */ }
+}
+function statsSave() {
+  try { localStorage.setItem(STAT_KEY, JSON.stringify(STATS)); } catch (e) {}
+}
+function statsRecordLaunch(buildMs) {
+  if (buildMs > 0) {
+    if (STATS.fastestMs === 0 || buildMs < STATS.fastestMs) { STATS.fastestMs = buildMs; }
+    STATS.totalBuildMs += buildMs;
+    STATS.launches++;
+    statsSave();
+  }
+}
+function statsRecordKills(kills) {
+  if (kills > STATS.bestKills) { STATS.bestKills = kills; statsSave(); }
+}
+function statsAvgSec() {
+  return STATS.launches ? STATS.totalBuildMs / STATS.launches / 1000 : 0;
+}
+/** 記録があるか。図鑑ボタンを出すかどうかの判定に使う。 */
+function hasSaveData() { return bookCount() > 0 || STATS.launches > 0; }
+
+/** 副色。手に持つ武器を決める。ピュアカラーは他の色が無いので -1（素手）。 */
+function subMakerOf(makers) { return nthMakerOf(makers, 1); }
+
+/** 第三色。背中の装備を決める。 */
+function thirdMakerOf(makers) { return nthMakerOf(makers, 2); }
+
+/* =========================================================================
+   6. CPU — Core/Bots.cs の写し（速攻 / 目標役狙い）
+   ========================================================================= */
+
+function neededSameColor(target) {
+  switch (target) {
+    case HAND.Three: case HAND.FullHouse: return 3;
+    case HAND.Four: return 4;
+    case HAND.Pure: return 5;
+    default: return 2;
+  }
+}
+
+// 空の作業台では常にレッドを返していたのが v1.5 の膠着の原因。
+// 空のときはラインに流れている色から選ぶ（9-2e）。
+function chooseWant(bench, line) {
+  const c = bench.countMakers();
+  let best = 0;
+  for (let i = 1; i < 5; i++) { if (c[i] > c[best]) { best = i; } }
+  if (c[best] > 0) { return best; }
+  const inLine = [0,0,0,0,0];
+  for (let i = 0; i < line.size; i++) { inLine[line.peek(i).maker]++; }
+  let pick = 0;
+  for (let i = 1; i < 5; i++) { if (inLine[i] > inLine[pick]) { pick = i; } }
+  return pick;
+}
+
+function findFitting(bench, line, want) {
+  let fallback = -1;
+  for (let i = 0; i < line.size; i++) {
+    const c = line.peek(i);
+    if (bench.filled[c.slot]) { continue; }
+    if (want >= 0 && c.maker === want) { return i; }
+    if (fallback < 0) { fallback = i; }
+  }
+  return want >= 0 ? -1 : fallback;
+}
+
+function findImprovingOverwrite(bench, line, want) {
+  for (let i = 0; i < line.size; i++) {
+    const c = line.peek(i);
+    if (c.maker !== want) { continue; }
+    if (!bench.canOverwrite(c.slot)) { continue; }
+    if (bench.maker[c.slot] === want) { continue; }
+    return i;
+  }
+  return -1;
+}
+
+/**
+ * CPUが引き直す1枚を選ぶ。
+ * パージ（4枚まとめて引き直し）は廃止したので、CPUも人間と同じ条件で1枚ずつ回す。
+ * 埋まっている部位のカードが最も要らないので、それを優先して捨てる。
+ */
+function pickDiscard(bench, line) {
+  for (let i = 0; i < line.size; i++) {
+    if (bench.filled[line.peek(i).slot]) { return i; }
+  }
+  return 0;
+}
+
+/** 速攻ボット。役を完全に無視して最速で撃つ。 */
+function botRush(bench, line) {
+  if (bench.complete) { return { kind:"launch" }; }
+  const i = findFitting(bench, line, -1);
+  return i >= 0 ? { kind:"take", i } : { kind:"discard", i: pickDiscard(bench, line) };
+}
+
+/** 目標役ボット。届くまで組み続ける。 */
+function botTarget(bench, line, target, heldMs) {
+  const wantPrism = (target === HAND.Prism);
+  if (bench.complete) {
+    const h = bench.hand();
+    const reached = wantPrism ? (h === HAND.Prism) : (h >= target && h !== HAND.Prism);
+    if (reached || heldMs >= 30000) { return { kind:"launch" }; }
+    const want = chooseWant(bench, line);
+    const ow = findImprovingOverwrite(bench, line, want);
+    if (ow >= 0) { return { kind:"overwrite", i:ow }; }
+    return { kind:"discard", i: pickDiscard(bench, line) };
+  }
+  const want = chooseWant(bench, line);
+  const c = bench.countMakers();
+  if (c[want] < neededSameColor(target)) {
+    const pref = findFitting(bench, line, want);
+    if (pref >= 0) { return { kind:"take", i:pref }; }
+  } else {
+    const any = findFitting(bench, line, -1);
+    if (any >= 0) { return { kind:"take", i:any }; }
+  }
+  return { kind:"discard", i: pickDiscard(bench, line) };
+}
+
+/* =========================================================================
+   7. 試合（実時間）
+   ========================================================================= */
+
+const $ = (s) => document.querySelector(s);
+const el = {
+  line: $("#line"), lockbar: $("#lockbar"),
+  benchMe: $("#benchme"), benchCpu: $("#benchcpu"),
+  handMe: $("#handme"), handCpu: $("#handcpu"),
+  hpMe: $("#hpme"), hpCpu: $("#hpcpu"), clock: $("#clock"),
+  launch: $("#btnlaunch"),
+  burst: $("#burst"), burstsub: $("#burstsub"), burstMecha: $("#burstmecha"),
+};
+
+let M = null;   // 現在の試合
+
+class Match {
+  constructor() {
+    this.me  = { bench:new Bench(), hp:CFG.baseHp, freeAt:0, guardUntil:0, completedAt:-1, emptySince:0, launches:0 };
+    this.cpu = { bench:new Bench(), hp:CFG.endless ? CFG.enemyHp : CFG.baseHp,
+                 freeAt:0, guardUntil:0, completedAt:-1, emptySince:0, launches:0 };
+
+    // 供給のしかた。ここがゲームの骨格を変える。
+    //   共有  … 中央に1本。取ったら相手は取れない＝直接の取り合い
+    //   私有  … 各自が自分の4枚と自分の山札を持つ（トランプのスピードと同じ形）
+    if (CFG.privateLines) {
+      this.me.line  = new SupplyLine(SPEC.supplyLineSize, 1);
+      this.cpu.line = new SupplyLine(SPEC.supplyLineSize, 1);
+    } else {
+      const shared = new SupplyLine(SPEC.supplyLineSize, SPEC.deckCopies);
+      this.me.line = shared;
+      this.cpu.line = shared;
+    }
+    this.line = this.me.line;   // 画面に出るのは常に自分のライン
+    this.t = 0;                 // 試合内の経過ミリ秒
+    this.freezeUntil = 0;       // 演出中。両者停止
+    this.over = false;
+    this.kills = 0;                // テトリス型で倒した機体の数
+    this.stats = { launches:0, overwrites:0, discards:0, guards:0,
+                   best:-1, buildMs:0, stripped:0 };
+    // 出撃1回ぶんの記録。撃つと機体が消えるので、プレイ中には確認できない
+    this.history = [];
+  }
+
+  fx(ms) { return ms * (CFG.fxScale / 100); }
+  get frozen() { return this.t < this.freezeUntil; }
+
+  /* ---- プレイヤーの手 ---- */
+  canAct() { return !this.over && !this.frozen && this.t >= this.me.freeAt; }
+
+  /**
+   * カードを1枚使う。行き先は自分の作業台だけ。
+   *
+   * v1.7 で「邪魔（相手の作業台へ送る）」を廃止した。
+   * 私有ラインにしたことで、邪魔は相手の空きを埋めて助ける行為になっていた（9-5f）。
+   * 相手を後退させる役目は **攻撃による部位破壊** が担う。
+   */
+  /** 空きスロットに装着する。使ったぶんは take() の中で即座に補充される。 */
+  playerTake(i) {
+    if (!this.canAct()) { return false; }
+    const my = this.me.line;
+    if (this.me.bench.filled[my.peek(i).slot]) { return false; }
+
+    const taken = my.take(i);
+    if (!this.me.bench.install(taken)) { my.put(taken); return false; }
+    this.me.freeAt = this.t + CFG.flickMs;
+    this._afterBenchChange(this.me);
+    return true;
+  }
+
+  /**
+   * 1枚だけ捨てて引き直す。
+   *
+   * 空きが残り1枚になると、4枚のうち1枚でもそこに合う確率は
+   * 1 −(4/5)^4 = **59%** しかない。4割の確率で「全部使えない」状態になり、
+   * パージ（800ms）を払って引き直すしかなかった。
+   * 実機で「**望んで無いのに全て上書きになる時が度々あって、パージを繰り返した**」。
+   *
+   * 単価はパージと同じにしてある（800ms ÷ 4枚 = 200ms）。
+   * 速くなるのではなく、**同じ速さで狙った1枚だけを狙える**ようにする。
+   */
+  playerDiscard(i) {
+    if (!this.canAct()) { return false; }
+    this.me.line.put(this.me.line.take(i));
+    this.stats.discards++;
+    this.me.freeAt = this.t + CFG.discardMs;
+    return true;
+  }
+
+  /** 装着済みのスロットを差し替える。完成には1歩も近づかないので、対価は重い。 */
+  playerOverwrite(i) {
+    if (!this.canAct()) { return false; }
+    const my = this.me.line;
+    const card = my.peek(i);
+    if (!this.me.bench.canOverwrite(card.slot)) { return false; }
+
+    const taken = my.take(i);
+    const removed = this.me.bench.overwrite(taken);
+    if (removed) { my.put(removed); }
+    this.stats.overwrites++;
+    this.me.freeAt = this.t + CFG.overwriteLockMs;
+    this._afterBenchChange(this.me);
+    return true;
+  }
+
+  playerGuard(on) {
+    if (this.over || this.frozen) { return; }
+    if (on) {
+      if (SPEC.guardRequiresComplete && !this.me.bench.complete) { return; }
+      this.me.guardUntil = this.t + 60000;   // 指を離すまで
+    } else if (this.me.guardUntil > this.t) {
+      this.me.guardUntil = 0;
+      this.me.freeAt = Math.max(this.me.freeAt, this.t + SPEC.guardReleaseLagMs);
+    }
+  }
+
+  _afterBenchChange(side) {
+    if (side.bench.complete && side.completedAt < 0) { side.completedAt = this.t; }
+    if (!side.bench.complete) { side.completedAt = -1; }
+  }
+
+  /* ---- CPU ---- */
+  stepCpu() {
+    if (this.over || this.frozen) { return; }
+    if (this.t < this.cpu.freeAt) { return; }
+    if (CFG.cpu === "idle") { this.cpu.freeAt = this.t + 1000; return; }
+
+    const held = this.cpu.completedAt >= 0 ? this.t - this.cpu.completedAt : 0;
+    const cl = this.cpu.line;               // 共有なら自分と同じ実体を指す
+
+    let act;
+    if (CFG.cpu === "rush") { act = botRush(this.cpu.bench, cl); }
+    else if (CFG.cpu === "full") { act = botTarget(this.cpu.bench, cl, HAND.FullHouse, held); }
+    else { act = botTarget(this.cpu.bench, cl, HAND.Pure, held); }
+
+    // 毎回きっちり同じ間隔だと、機械が刻んでいる感じになる。±30% ばらつかせる。
+    const base = this.cpuLag();
+    const lag = CFG.cpuJitter ? base * (0.7 + Math.random() * 0.6) : base;
+    if (act.kind === "take") {
+      const c = cl.take(act.i);
+      if (!this.cpu.bench.install(c)) { cl.put(c); }
+      this.cpu.freeAt = this.t + CFG.flickMs + lag;
+      this._afterBenchChange(this.cpu);
+    } else if (act.kind === "overwrite") {
+      const c = cl.take(act.i);
+      const removed = this.cpu.bench.overwrite(c);
+      if (removed) { cl.put(removed); } else { cl.put(c); }
+      this.cpu.freeAt = this.t + CFG.overwriteLockMs + lag;
+    } else if (act.kind === "discard") {
+      cl.put(cl.take(act.i));
+      this.cpu.freeAt = this.t + CFG.discardMs + lag;
+    } else if (act.kind === "launch") {
+      this.launch(this.cpu, this.me, false);
+    }
+  }
+
+  /* ---- 出撃：押したら即攻撃。選択画面は挟まない（v1.7）---- */
+  launch(atk, def, isPlayer) {
+    if (!atk.bench.complete) { return; }
+    this.doLaunch(atk, def, atk.bench.hand(), moveOf(atk.bench), isPlayer);
+  }
+
+  doLaunch(atk, def, hand, move, isPlayer) {
+    const guarding = def.guardUntil > this.t;
+    const r = resolveAttack(hand, move, atk.hp / CFG.baseHp,
+                            guarding, def.bench.complete,
+                            def.bench.complete ? def.bench.hand() : HAND.OnePair);
+
+    def.hp = Math.max(0, def.hp - r.damage);
+    atk.launches++;
+
+    if (isPlayer) {
+      this.stats.launches++;
+      if (hand > this.stats.best) { this.stats.best = hand; }
+      this.stats.buildMs += (this.t - atk.emptySince);
+    }
+
+    const lostParts = [];   // 履歴に残すため、if の外で持つ
+
+    if (guarding) {
+      this.stats.guards++;
+      def.bench.clear(def.line);        // 受け止めた機体は全損（6-3）
+      def.completedAt = -1; def.guardUntil = 0; def.emptySince = this.t;
+      if (!isPlayer) { logAction("ガードで受けた：機体は全損", "ng"); }
+    } else {
+      // 攻撃は当たれば必ず相手の部位を壊す（v1.7）。
+      // これが唯一の妨害手段。拡散弾（元から壊す技）は2つ壊して持ち味を保つ
+      // （6-2c のメーカー差別化を潰さないため）。
+      const n = move.strip ? 2 : 1;
+      const lost = lostParts;
+      for (let k = 0; k < n; k++) {
+        const s = stripOne(def.bench, def.line);
+        if (s >= 0) { lost.push(SLOTS[s]); }
+      }
+      if (!def.bench.complete) { def.completedAt = -1; }
+      this.stats.stripped += n;
+      // 自分がやられた側なら知らせる。
+      // 上書きした直後に壊されると「上書きが効いていない」ように見えるため。
+      if (!isPlayer && lost.length) {
+        logAction("攻撃を受けた：" + lost.join("・") + " が壊れた", "ng");
+      }
+    }
+
+    // 機体を片付ける前に記録する。ここを逃すと二度と見られない
+    this.history.push({
+      t: this.t,
+      mine: isPlayer,
+      makers: atk.bench.maker.slice(),
+      hand: hand,
+      move: move.name,
+      sub: subMakerOf(atk.bench.maker),
+      dmg: Math.round(r.damage),
+      guarded: guarding,
+      desperate: r.desperate,
+      // 自分が出した機体だけ図鑑に載せる（5-5）
+      isNew: isPlayer ? bookRecord(atk.bench.maker) : false,
+      lost: lostParts.slice(),
+      buildMs: this.t - atk.emptySince,
+      killed: def.hp <= 0,
+    });
+    // 戦歴に反映（走りの途中で閉じても残るよう、出撃ごとに保存する）
+    if (isPlayer) { statsRecordLaunch(this.t - atk.emptySince); }
+
+    atk.bench.clear(atk.line);
+    atk.completedAt = -1;
+    atk.emptySince = this.t;
+
+    const freeze = this.fx(r.effectMs);
+    this.freezeUntil = this.t + freeze;
+    const resume = this.t + freeze;
+    if (def.freeAt < resume) { def.freeAt = resume; }
+    atk.freeAt = resume + r.reloadMs;
+
+    showBurst(hand, move, r, isPlayer, this.history[this.history.length - 1].makers);
+    // テトリス型では、相手を倒しても走りは終わらない（tick が次の機体を出す）。
+    // 終わるのは自分が落ちたときだけ。
+    if (def.hp <= 0 && (!CFG.endless || def === this.me)) { this.over = true; }
+  }
+
+  /**
+   * 今のCPUの「考える時間」。
+   * テトリス型では、走っている時間に応じて **だんだん詰まっていく**。
+   * 序盤は役を狙う余裕があり、終盤は速さ勝負になる。
+   */
+  cpuLag() {
+    if (!CFG.endless) { return CFG.cpuLagMs; }
+    // 時間で連続的に詰めていたが、実機で「**加速には気づかなかった**」。
+    // なめらかに変わるものは、変わったことが分からない。
+    // テトリスのレベルと同じく **1機倒すごとに段で上げ、上がった瞬間を見せる**。
+    return Math.max(CFG.floorLagMs, CFG.startLagMs - this.kills * CFG.stepLagMs);
+  }
+
+  tick(dt) {
+    if (this.over) { return; }
+    this.t += dt;
+
+    this.stepCpu();
+
+    if (CFG.endless) {
+      // 相手を倒したら次の機体が出てくる。走りは続く。
+      if (this.cpu.hp <= 0) {
+        this.kills++;
+        statsRecordKills(this.kills);
+        const heal = CFG.baseHp * (CFG.healOnKill / 100);
+        this.me.hp = Math.min(CFG.baseHp, this.me.hp + heal);
+        this.cpu.hp = CFG.enemyHp;
+        this.cpu.bench.clear(this.cpu.line);
+        this.cpu.completedAt = -1;
+        this.cpu.emptySince = this.t;
+        // とどめの一撃の演出が終わるまで、撃破の告知を待たせる。
+        // 待たないと showLevelUp が機体の絵を消してしまう（実機で「たまにロボットが出ない」）。
+        const wait = Math.max(0, BURST_ENDS - performance.now());
+        this.cpu.freeAt = this.t + wait + 1300;  // 次の機体が出てくるまでの間
+        this.freezeUntil = Math.max(this.freezeUntil, this.t + wait + 1100);
+
+        // 段が上がったことを、必ず目に入れる。
+        const sec = (CFG.flickMs + this.cpuLag()) * 5 / 1000;
+        const atFloor = this.cpuLag() <= CFG.floorLagMs;
+        const nextNo = this.kills + 1;   // 遅らせるので、今の値を捕まえておく
+        setTimeout(() => showLevelUp(nextNo, sec, atFloor), wait);
+        logAction("撃破 " + this.kills + "機　HP +" + Math.round(heal)
+                + "　次は " + sec.toFixed(1) + "秒", "ok");
+      }
+      // 走りが終わるのは自分が落ちたときだけ
+      if (this.me.hp <= 0) { this.over = true; }
+      return;
+    }
+
+    if (this.t >= CFG.matchLimitSec * 1000) { this.over = true; }
+  }
+}
+
+/** 部位を1つ壊す。壊した部位を返す（壊すものが無ければ -1）。 */
+function stripOne(bench, line) {
+  const filled = [];
+  for (let i = 0; i < 5; i++) { if (bench.filled[i]) { filled.push(i); } }
+  if (!filled.length) { return -1; }
+  const s = filled[Math.floor(Math.random() * filled.length)];
+  line.put({ maker: bench.maker[s], slot: s });
+  bench.filled[s] = false;
+  bench.overwritten[s] = false;
+  return s;
+}
+
+/* =========================================================================
+   8. 描画
+   ========================================================================= */
+
+let cardEls = [];
+
+/* ---- パーツの色付け（canvas）---- */
+
+const PART_IMG = [];        // 読み込み済みの素材
+const TINT_CACHE = {};      // "スロット:メーカー" → data URL
+
+/** 5枚の素材を先に読み込む。これが済むまで色付きは作れない。 */
+function loadParts() {
+  return Promise.all(SLOT_IMG.map((src, i) => new Promise((res) => {
+    const im = new Image();
+    im.onload = () => { PART_IMG[i] = im; res(); };
+    im.onerror = () => { PART_IMG[i] = null; res(); };
+    im.src = src;
+  })));
+}
+
+/** CSS変数の色を実際の値にする（canvas に var() は渡せない） */
+function resolveColor(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+/**
+ * パーツをメーカー色で塗った画像を作る。
+ *   1. 素材を描く
+ *   2. source-in で塗りつぶす → 形だけが色のシルエットになる
+ *   3. source-atop で素材を薄く重ねる → 輪郭と陰影が戻る
+ * 1回作ったら使い回す（25通りしかない）。
+ */
+function tintedPart(slot, maker) {
+  const key = slot + ":" + maker;
+  if (TINT_CACHE[key]) { return TINT_CACHE[key]; }
+  const im = PART_IMG[slot];
+  if (!im) { return SLOT_IMG[slot]; }
+
+  const cv = document.createElement("canvas");
+  cv.width = im.naturalWidth;
+  cv.height = im.naturalHeight;
+  const g = cv.getContext("2d");
+
+  g.drawImage(im, 0, 0);
+  g.globalCompositeOperation = "source-in";
+  g.fillStyle = resolveColor(MAKER_VAR[maker]);
+  g.fillRect(0, 0, cv.width, cv.height);
+
+  g.globalCompositeOperation = "source-atop";
+  g.globalAlpha = 0.42;                     // 線画の濃さ。濃いと色が白く飛ぶ
+  g.drawImage(im, 0, 0);
+
+  TINT_CACHE[key] = cv.toDataURL("image/png");
+  return TINT_CACHE[key];
+}
+
+const MK = ["レッド", "ブルー", "イエロー", "グリーン", "パープル"];
+
+/**
+ * 直前の操作の結果を画面に出す。
+ *
+ * 「上書きで色が変わらない」が実機で続いたとき、手元では動いていたため
+ * 原因を切り分けられなかった。**押した結果をその場で見せる**ことで、
+ * 「効いていない」のか「効いたが見た目が変わらない」のかを分ける。
+ */
+function logAction(text, kind) {
+  const box = $("#log");
+  const d = document.createElement("div");
+  d.className = kind || "";
+  d.textContent = text;
+  for (const old of box.children) { old.classList.add("old"); }
+  box.appendChild(d);
+  // 消さない。消えると、スクリーンショットを撮ったときには何も残っていない。
+  while (box.children.length > 5) { box.removeChild(box.firstChild); }
+  // 盤面に出していなくても ⚙ の「テスト表示」から読めるようにしておく。
+  const mirror = $("#devlog");
+  if (mirror) { mirror.textContent = [...box.children].map(e => e.textContent).join(" ／ "); }
+}
+
+function buildCards() {
+  for (const c of cardEls) { c.root.remove(); }
+  cardEls = [];
+  for (let i = 0; i < SPEC.supplyLineSize; i++) {
+    const root = document.createElement("div");
+    root.className = "card";
+    root.innerHTML =
+        '<div class="face">'
+      +   '<div class="bg"></div><img class="art" alt=""><div class="taphint"></div><div class="tag"></div>'
+      + '</div>'
+      + '<div class="acts">'
+      +   '<button class="act over" type="button">上書き</button>'
+      +   '<button class="act drop" type="button">引き直し</button>'
+      + '</div>';
+
+    // カード本体を押す＝**装着だけ**。
+    //
+    // 以前は「空きなら装着／埋まっていれば引き直し」を同じタップに割り当てていたが、
+    // **付けるつもりで押したら捨てていた**（実機で誤操作の報告）。
+    // 同じ動作に、欲しい結果と失う結果を両方載せてはいけない。
+    // 埋まっている部位のカードは **押しても何も起きない**。捨てるならボタンを押す。
+    const bOver = root.querySelector(".over");
+    const bDrop = root.querySelector(".drop");
+    // ボタンの上で起きた操作をカード本体に拾わせない。
+    // 以前はフラグで抑えていたが、ボタンが click 経路で動いたときフラグが消えず、
+    // **次にそのカードを押した1回が食べられていた**。押された場所を直接見る。
+    const onButton = (e) => !!(e.target && e.target.closest && e.target.closest(".act"));
+
+    // ボタンは押した瞬間に効かせる（click は指を離すまで待つので、リアルタイムでは重い）。
+    // 押されたら必ずログを出す。無反応をなくす。
+    // ボタンも pointer と click の両方で受ける（カード本体と同じ理由）
+    const press = (btn, fn) => {
+      let done = false;
+      btn.addEventListener("pointerdown", (e) => {
+        e.stopPropagation();
+        done = true;
+        btn.classList.add("tapped");
+        if (M) { fn(); }
+      });
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (done) { done = false; return; }
+        if (M) { fn(); }
+      });
+      const off = () => btn.classList.remove("tapped");
+      btn.addEventListener("pointerup", off);
+      btn.addEventListener("pointercancel", off);
+      btn.addEventListener("pointerleave", off);
+    };
+
+    // カード本体＝主操作
+    const untap = () => root.classList.remove("tapped");
+
+    const primary = () => {
+      if (!M) { return; }
+      const card = M.me.line.peek(i);
+      if (!M.canAct()) { logAction("動けない（ロック中）", "ng"); return; }
+      // 埋まっている部位のカードをどう扱うか。実機で判断が割れた箇所。
+      //   速さ優先 … カード全体が引き直しになる。押しやすいが誤爆する
+      //   安全優先 … 何もしない。誤爆しないが、毎回ボタンを狙う必要がある
+      if (M.me.bench.filled[card.slot]) {
+        if (CFG.tapMode !== "fast") { return; }
+        if (M.playerDiscard(i)) { c.dealt = true; logAction("引き直し：" + MK[card.maker] + " " + SLOTS[card.slot], "ok"); }
+        return;
+      }
+      if (M.playerTake(i)) { c.dealt = true; logAction("装着：" + SLOTS[card.slot] + " " + MK[card.maker], "ok"); }
+      else { logAction("組立：失敗", "ng"); }
+    };
+
+    // pointer と click の **両方** で受ける。
+    // 実機で最初のタップが通らない件が、入口画面を足しても消えなかった。
+    // どちらか片方が落ちても、もう片方が拾う。二重に効かないよう handled で締める。
+    let handled = false;
+
+    root.addEventListener("pointerdown", (e) => {
+      if (onButton(e)) { return; }
+      handled = false;
+      root.classList.add("tapped");
+    });
+    root.addEventListener("pointerup", (e) => {
+      untap();
+      if (onButton(e)) { return; }     // ボタンの操作だった
+      handled = true;
+      primary();
+    });
+    root.addEventListener("click", (e) => {
+      if (onButton(e)) { return; }
+      if (handled) { handled = false; return; }
+      primary();
+    });
+    // 長押しでメニューが出ると、その後のタップを取りこぼす
+    root.addEventListener("contextmenu", (e) => e.preventDefault());
+    root.addEventListener("pointercancel", untap);
+    root.addEventListener("pointerleave", untap);
+
+    press(bDrop, () => {
+      const card = M.me.line.peek(i);
+      if (!M.canAct()) { logAction("引き直し：動けない（ロック中）", "ng"); return; }
+      if (M.playerDiscard(i)) { c.dealt = true; logAction("引き直し：" + MK[card.maker] + " " + SLOTS[card.slot], "ok"); }
+      else { logAction("引き直し：失敗", "ng"); }
+    });
+
+    press(bOver, () => {
+      const card = M.me.line.peek(i);
+      const from = M.me.bench.maker[card.slot];
+      if (!M.canAct()) { logAction("上書き：動けない（ロック中）", "ng"); return; }
+      if (!M.me.bench.filled[card.slot]) { logAction("上書き：" + SLOTS[card.slot] + " は空き", "ng"); return; }
+      if (!M.me.bench.canOverwrite(card.slot)) { logAction("上書き：" + SLOTS[card.slot] + " はもう上書き済み", "ng"); return; }
+      if (from === card.maker) { logAction("上書き：同じ色なので意味がない", "ng"); return; }
+      if (M.playerOverwrite(i)) {
+        c.dealt = true;
+        logAction("上書き：" + SLOTS[card.slot] + " " + MK[from] + " → " + MK[card.maker], "ok");
+      } else { logAction("上書き：失敗", "ng"); }
+    });
+
+    // 参照はここで固定する。毎フレーム querySelector すると端末で目に見えて重い。
+    const c = {
+      root, bOver, bDrop,
+      face:    root.querySelector(".face"),
+      tapHint: root.querySelector(".taphint"),
+      bg:   root.querySelector(".bg"),
+      art:  root.querySelector(".art"),
+      tag:  root.querySelector(".tag"),
+      dealt: false,
+      last: { maker:-1, slot:-1, state:"" },
+    };
+    el.line.appendChild(root);
+    cardEls.push(c);
+  }
+}
+
+function paintCards() {
+  const canAct = M.canAct();
+  let anyUsable = false;
+
+  for (let i = 0; i < cardEls.length; i++) {
+    const card = M.me.line.peek(i);
+    const d = cardEls[i];
+
+    // タップで何が起きるかは3通りしかない。
+    //   空き        → 装着
+    //   埋まっている → 捨てて引き直す（長押しなら上書き）
+    const filled  = M.me.bench.filled[card.slot];
+    // 同じ色での上書きは、成立しても見た目も役も変わらないのに
+    // **その部位の上書き権（1回だけ）を使い切る**。損しかないので出さない。
+    // 実機の「上書きで色が変わらない」はこれだった。
+    const canOver = filled
+                 && M.me.bench.canOverwrite(card.slot)
+                 && M.me.bench.maker[card.slot] !== card.maker;
+    if (!filled) { anyUsable = true; }
+
+    // 変わっていない部分は触らない
+    if (d.last.maker !== card.maker || d.last.slot !== card.slot) {
+      d.bg.style.background = "var(" + MAKER_VAR[card.maker] + ")";
+      d.art.src = SLOT_IMG[card.slot];
+      d.tag.textContent = MAKERS[card.maker] + " " + SLOTS[card.slot];
+      d.last.maker = card.maker;
+      d.last.slot = card.slot;
+    }
+
+    // 使った直後に次が入ったことを見せる。
+    // 中身の判定とは切り離す。同じ絵が引き直されることもあり、
+    // そのときも「入れ替わった」ことは伝える必要がある。
+    if (d.dealt) {
+      d.dealt = false;
+      d.face.classList.remove("fresh");
+      void d.face.offsetWidth;
+      d.face.classList.add("fresh");
+    }
+
+    const state = (filled ? (canOver ? "o" : "d") : "-") + (canAct ? "1" : "0") + CFG.tapMode;
+    if (d.last.state === state) { continue; }
+    d.last.state = state;
+
+    d.root.classList.toggle("spare", filled);     // 空きに置けない＝捨てる札
+    d.root.classList.toggle("blocked", !canAct);
+
+    // できない操作は暗くするが、**押せなくはしない**。
+    // disabled にするとイベントごと消えて、押しても無反応・記録も残らない。
+    // カード本体は装着だけ。埋まっている部位はボタンで操作する。
+    // 速さ優先ではカード全体が引き直しになるので、ボタンは要らない
+    const showDrop = filled && CFG.tapMode !== "fast";
+    d.root.classList.toggle("hasacts", showDrop || canOver);
+    d.bDrop.style.display = showDrop ? "" : "none";
+    d.bOver.style.display = canOver ? "" : "none";
+    d.bOver.classList.toggle("off", !canAct);
+    d.bDrop.classList.toggle("off", !canAct);
+    // hasacts の判定に tapMode が入るので、状態キーにも含める
+    // 帯の色は「その帯が示す操作」で決める（.go 組立／.alt 引き直し／.no 案内だけ）
+    const fast = CFG.tapMode === "fast";
+    d.tapHint.textContent = !filled ? "タップで組立"
+                          : (fast ? "タップで引き直し" : SLOTS[card.slot] + " は埋まっている");
+    d.tapHint.className = "taphint " + (!filled ? "go" : (fast ? "alt" : "no"));
+  }
+
+}
+
+// 作業台を「頭 / 腕+胴+腕 / 腰 / 脚+脚」で組む。
+// カードの絵は片腕・片脚なので、反転して2つ並べる（仕様書 3-4b）。
+/** 絵の実寸から出した縦横比。セルをこの形にすれば余白が出ない。 */
+const SLOT_ASPECT = [0.65, 0.90, 1.03, 0.85, 0.39];   // 頭 胸 腰 腕 脚
+
+/**
+ * 機体の割りつけ。h = 各行に配る高さの比。
+ * 幅は縦横比から自動で決まるので指定しない。
+ */
+const FIG = [
+  { h:16, cells:[{ s:0 }] },
+  { h:30, cells:[{ s:3, mirror:true }, { s:1 }, { s:3 }] },
+  { h:13, cells:[{ s:2 }] },
+  { h:41, cells:[{ s:4, mirror:true }, { s:4 }] },
+];
+
+/**
+ * 完成した機体の1枚絵。役（グレード）× 主色（骨格）で 35体。仕様書 5-2。
+ *
+ * **部品の合成ではない。** 5枚の組み合わせから「何に変身したか」が決まる。
+ * 絵は bounding box で切り抜いてあるので、object-fit: contain で入れれば
+ * 機体ごとの大きさのばらつき（1350〜1902px）が吸収される。
+ */
+const MECHA_DIR = "mecha/game/";
+function wholeMechaSrc(bench) {
+  const h = bench.hand();
+  if (h < 0) { return null; }
+  const p = primaryMakerOf(bench.maker);
+  return MECHA_DIR + "h" + h + "_" + ["red","blue","yellow","green","purple"][p] + ".png";
+}
+
+function buildBench(host) {
+  host.innerHTML = "";
+  host._cells = [];
+  // 完成時に前面へ出す1枚絵。未完成のあいだは非表示で、部品の寄せ集めが見える。
+  const whole = document.createElement("img");
+  whole.className = "whole";
+  whole.alt = "";
+  host.appendChild(whole);
+  host._whole = whole;
+  host._wholeSrc = "";
+  const fig = document.createElement("div");
+  fig.className = "figure";
+  for (const row of FIG) {
+    const r = document.createElement("div");
+    r.className = "figrow";
+    r.style.flex = row.h + " 1 0";
+    for (const c of row.cells) {
+      const cell = document.createElement("div");
+      cell.className = "cell" + (c.mirror ? " mirror" : "");
+      // 高さは行から受け取り、幅は絵の縦横比から自動で出す。これで余白が出ない。
+      cell.style.aspectRatio = String(SLOT_ASPECT[c.s]);
+      // 色の板（.plate）は廃止した。
+      // セル全体に敷いた長方形なのに、絵は object-fit: contain で縦横比を保つため、
+      // 細長い脚では板が左右に、横広の頭では上下にはみ出していた
+      //（実機で「色の板が部位の上に出たり下に出たりする」）。
+      // 絵そのものをマスクにして塗れば、形は必ず一致する。
+      cell.innerHTML = '<img alt="">';
+      r.appendChild(cell);
+      // 参照とスロット番号を持たせておく（毎フレームの querySelector を避ける）
+      host._cells.push({
+        slot: c.s, node: cell,
+        img: cell.querySelector("img"),
+        last: -2,
+      });
+    }
+    fig.appendChild(r);
+  }
+
+  host.appendChild(fig);
+}
+
+function paintBench(host, bench) {
+  host.classList.toggle("complete", bench.complete);
+
+  // あと1色でピュアカラーなら、その色の動画を先に温めておく（5-4c）。
+  warmPureVideo(bench);
+
+  // **作業台は常に部品のまま。** 完成しても1枚絵に差し替えない。
+  //
+  // 一度は「完成したら1枚絵」にしたが、実機で即座に却下された。
+  //   「出撃すると、ロボットに変わる方が良い。
+  //     そうでないと部位の上書きどこをすればいいか分からない」
+  //
+  // 作業台は見せ物ではなく **上書き先を選ぶUI** でもある。
+  // どの部位が何色かが見えなくなると、上書きの判断ができない。
+  // 機体の姿は出撃の瞬間に見せる（5-4 閃光による差し替え）。
+  for (const c of host._cells) {
+    const on = bench.filled[c.slot];
+    // 空きなら -1、埋まっていればメーカー番号。変わっていなければ何もしない。
+    const now = on ? bench.maker[c.slot] : -1;
+    if (c.last === now) { continue; }
+    c.last = now;
+
+    c.node.classList.toggle("empty", !on);
+    c.img.style.display = on ? "" : "none";
+    // 色付き画像に差し替える。canvas で作った普通の <img> なので環境差が出ない。
+    if (on) { c.img.src = tintedPart(c.slot, now); }
+  }
+
+}
+
+/** メーカーの頭文字。作業台の中身を文字でも確認できるようにする。 */
+const MK1 = ["赤", "青", "黄", "緑", "紫"];
+
+function paintHand(host, bench) {
+  // 装着状況を文字にする。絵の色が読めない／変わって見えないときに、
+  // 「データが変わっていない」のか「絵に出ていない」のかを切り分けられる。
+  let makers = "";
+  for (let s = 0; s < 5; s++) { makers += bench.filled[s] ? MK1[bench.maker[s]] : "・"; }
+
+  // innerHTML を毎フレーム書き換えると端末で目に見えて重い。変化時だけにする。
+  const key = (bench.complete ? "h" + bench.hand() : "c" + bench.count) + makers;
+  if (host._last === key) { return; }
+  host._last = key;
+
+  const parts = '<span class="parts">' + makers + '</span>';
+  if (!bench.complete) {
+    host.innerHTML = parts + '<span class="pend">' + bench.count + ' / 5</span>';
+    return;
+  }
+  const h = bench.hand();
+  host.innerHTML = parts
+                 + '<span class="name">' + HAND_NAME[h] + '</span>'
+                 + '<span class="mul">×' + mul(h).toFixed(2) + '</span>';
+}
+
+function paintHp(host, hp, max) {
+  const v = Math.ceil(Math.max(0, hp));
+  if (host._last === v) { return; }
+  host._last = v;
+
+  if (!host._fill) {
+    host._fill = host.querySelector(".fill");
+    host._num = host.querySelector(".num");
+  }
+  const r = v / (max || CFG.baseHp);
+  host._fill.style.width = (r * 100) + "%";
+  host._num.textContent = v;
+  host.classList.toggle("low", r <= SPEC.desperationThreshold);
+}
+
+function paintLock() {
+  const left = M.me.freeAt - M.t;
+  if (left <= 0 || M.frozen) { el.lockbar.style.opacity = "0"; return; }
+  el.lockbar.style.opacity = "1";
+  // 直近のロック長を基準に縮める
+  el.lockbar.style.transform = "scaleX(" + Math.min(1, left / CFG.overwriteLockMs) + ")";
+}
+
+function paint() {
+  paintCards();
+  paintBench(el.benchMe, M.me.bench);
+  paintBench(el.benchCpu, M.cpu.bench);
+  paintHand(el.handMe, M.me.bench);
+  paintHand(el.handCpu, M.cpu.bench);
+  paintHp(el.hpMe, M.me.hp);
+  paintHp(el.hpCpu, M.cpu.hp, CFG.endless ? CFG.enemyHp : CFG.baseHp);
+  paintLock();
+
+  el.benchMe.classList.toggle("guarding", M.me.guardUntil > M.t);
+  el.benchCpu.classList.toggle("guarding", M.cpu.guardUntil > M.t);
+  el.launch.disabled = !(M.me.bench.complete && M.canAct());
+
+  // テトリス型では残り時間に意味が無い。**撃破数と、相手がどこまで速くなったか**を出す。
+  if (CFG.endless) {
+    const sec = Math.floor(M.t / 1000);
+    const key = M.kills + ":" + sec;
+    if (el.clock._last === key) { return; }
+    el.clock._last = key;
+    el.clock.firstChild.textContent = "第 " + (M.kills + 1) + " 機";
+    el.clock.querySelector(".sub").textContent =
+      Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0")
+      + "　敵 " + ((CFG.flickMs + M.cpuLag()) * 5 / 1000).toFixed(1) + "秒";
+    return;
+  }
+
+  const left = Math.max(0, CFG.matchLimitSec * 1000 - M.t);
+  const s = Math.ceil(left / 1000);
+  if (el.clock._last !== s) {
+    el.clock._last = s;
+    el.clock.firstChild.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    el.clock.querySelector(".sub").textContent = "のこり";
+  }
+}
+
+/**
+ * 次の機体が出てくることと、**速くなったこと**を見せる。
+ * 連続的に詰めると変化に気づけないので、段で上げて必ず告知する。
+ */
+function showLevelUp(n, sec, atFloor) {
+  el.burstMecha.style.display = "none";   // 加速の告知に機体は出さない
+  el.burst.textContent = "第 " + n + " 機";
+  el.burst.style.color = "var(--warn)";
+  el.burstsub.textContent = atFloor
+    ? "これ以上は速くならない　組み立て " + sec.toFixed(1) + "秒"
+    : "加速　組み立て " + sec.toFixed(1) + "秒";
+  el.burst.classList.remove("show"); el.burstsub.classList.remove("show");
+  void el.burst.offsetWidth;
+  el.burst.classList.add("show"); el.burstsub.classList.add("show");
+  setTimeout(() => { el.burst.classList.remove("show"); el.burstsub.classList.remove("show");
+                     el.burstMecha.classList.remove("show"); }, 1100);
+}
+
+/**
+ * 出撃演出が終わる実時刻。**撃破の告知をここまで待たせる**ために持つ。
+ *
+ * 撃破のフレームで showLevelUp が走ると、機体の絵を display:none にして
+ * 文字も上書きしてしまい、**とどめの一撃だけ機体が見えない**という状態だった。
+ * 一番見たい瞬間が一番見えないので、告知を演出の後ろへずらす。
+ */
+let BURST_ENDS = 0;
+
+/**
+ * 閃光（仕様書 5-4）。**却下。**
+ *
+ * 「寄せ集め → 機体」の差し替えを白飛びで隠す案。実装して実機で見せたが
+ * 「**微妙かな？　そういう演出じゃなく、できれば絵を動かしたい**」となった。
+ *
+ * 光は差し替えを隠すだけで、**何も起きた感じがしない**。
+ * 代わりに機体そのものを動かす（`mechaCharge`）と、
+ * 動きが差し替えを覆うので、光は要らなくなった。
+ *
+ * 呼び出しは外してあるが、CSS ともども残す。
+ * とどめの一撃だけ光らせる、といった使い道はまだあるかもしれない。
+ */
+/**
+ * 敵の攻撃のときだけ、画面のふちを赤く灼く（5-4d）。
+ *
+ * 白い全画面の閃光は一度却下されている（5-4b）。**あれは全面を塗って盤面を消すから**で、
+ * これは周辺だけを染めるので盤面は読めたまま。**殴られたことを数字より先に伝える。**
+ * 自分の攻撃では出さない。出すと、どちらが殴られたのか分からなくなる。
+ */
+function showEnemyFlash(hand) {
+  const f = $("#flash");
+  f.classList.remove("go");
+  void f.offsetWidth;
+  f.style.setProperty("--peak", (0.55 + hand * 0.06).toFixed(2));
+  f.classList.add("enemy", "go");
+}
+
+/**
+ * 演出中の全画面マスク（5-4d）。ピュアカラーの動画と覆いかたを揃える。
+ * **濃さは役の強さに比例。** ワンペア(350ms)で真っ暗にするとテンポが死ぬ。
+ */
+function showVeil(hand, ms) {
+  const v = $("#burstveil");
+  v.style.setProperty("--veil", (0.34 + hand * 0.09).toFixed(2));
+  v.classList.add("go");
+  clearTimeout(showVeil._t);
+  showVeil._t = setTimeout(() => { v.classList.remove("go"); }, ms);
+}
+
+/** 動画のファイル名。5社ぶん。docs/mecha/video/pure_<色>.mp4
+ *   赤 炎の剣で斬る ／ 青 波動砲 ／ 黄 ミサイル弾幕 ／ 緑 鎖付き鉄球 ／ 紫 ドリル4本射出 */
+function pureVideoSrc(p) {
+  return "mecha/video/pure_" + ["red", "blue", "yellow", "green", "purple"][p] + ".mp4";
+}
+
+/**
+ * 動画の先読み（5-4c）。5本で約33MB あるので、**起動時には1バイトも読まない。**
+ *
+ * かといって出撃の瞬間に読み始めると、演出4秒に対して6MBのダウンロードが
+ * 間に合わない。**「あと1色でピュアカラー」になった時点で、その色だけを読む。**
+ *
+ * - 出撃の99.84%はピュアカラーにならないので、ほとんどの走りで通信は発生しない
+ * - 発生しても1本ぶん（6〜10MB）で、5本ぶんにはならない
+ * - 「塗り替え」戦法（9-5p）で狙いに行くと、まさに狙っている色が先に温まる
+ *
+ * **失敗は無視する。** 温まらなければ動画が出ないだけで、試合は止めない。
+ */
+const VIDEO_WARMED = new Set();
+function warmPureVideo(bench) {
+  // 埋まっている枠の色を数え、4つ以上そろっていたらその色を温める。
+  const n = [0, 0, 0, 0, 0];
+  for (let s = 0; s < 5; s++) {
+    if (bench.filled[s]) { n[bench.maker[s]]++; }
+  }
+  for (let p = 0; p < 5; p++) {
+    if (n[p] < 4 || VIDEO_WARMED.has(p)) { continue; }
+    VIDEO_WARMED.add(p);                       // 失敗しても再挑戦しない（通信を繰り返さない）
+    fetch(pureVideoSrc(p)).catch(() => {});    // HTTPキャッシュに載せるだけ
+  }
+}
+
+/**
+ * ピュアカラー専用の動画演出（5-4b）。0.16%でしか出ないので、そこだけ特別扱い。
+ *
+ * **無ければ静かに諦める。** 動画が用意されていない社や、
+ * 端末が自動再生を拒んだ場合は、そのまま静止画の演出だけが残る。
+ * **演出のために試合を止めない。**
+ */
+/** テスト用の表示（入力カウンタ・自己診断ログ）を、演出の間だけ伏せる。
+ *  消さずに透明にするだけなので、演出が終われば元どおり読める。 */
+function hideTestHud(on) {
+  const o = on ? "0" : "1";
+  $("#taps").style.opacity = o;
+  $("#log").style.opacity = o;
+}
+
+function playPureVideo(makers) {
+  const v = $("#burstvid");
+  const p = primaryMakerOf(makers);
+  const src = pureVideoSrc(p);
+  v.src = src;
+  v.currentTime = 0;
+  // 再生できたときだけ、役名を動画の上に持ち上げて静止画の機体を引っ込める。
+  // **失敗したら何も足さない**ので、静止画の演出がそのまま残る。
+  const onVid = (on) => {
+    $("#center").classList.toggle("onvid", on);
+    hideTestHud(on);   // 演出の上に検証情報が乗ると絵が死ぬ
+  };
+  const go = v.play();
+  if (go && go.catch) {
+    go.then(() => { v.classList.add("go"); onVid(true); })
+      .catch(() => { v.classList.remove("go"); onVid(false); });  // 自動再生を拒まれたら静止画のまま
+  } else {
+    v.classList.add("go"); onVid(true);
+  }
+  v.onended = () => { v.classList.remove("go"); onVid(false); };
+}
+
+function showBurst(hand, move, r, isPlayer, makers) {
+  // ピュアカラーだけ動画。それ以外は静止画を動かす。
+  const v = $("#burstvid");
+  v.classList.remove("go");
+  $("#center").classList.remove("onvid");   // 前の出撃の持ち上げを必ず戻す
+  $("#flash").classList.remove("enemy");    // 前の出撃の赤も必ず戻す
+  hideTestHud(false);
+  if (hand === HAND.Pure && makers) { playPureVideo(makers); }
+
+  // 組み上がった機体を、出撃の瞬間だけ見せる。
+  // 演出時間は役ごとに違う（ワンペア200ms 〜 ピュアカラー3000ms）ので、
+  // 良い役ほど長く眺められる。描き込み量もそれに合わせてある（5-2b）。
+  if (makers) {
+    el.burstMecha.src = MECHA_DIR + "h" + hand + "_"
+                      + ["red","blue","yellow","green","purple"][primaryMakerOf(makers)] + ".png";
+    el.burstMecha.style.display = "";
+  } else {
+    el.burstMecha.style.display = "none";
+  }
+  // 動きの長さを演出時間に合わせる。ワンペア(200ms)で長い動きをすると間に合わず、
+  // ピュアカラー(3000ms)で短い動きだと、出た直後から止まった絵を見せることになる。
+  // 演出の7割を動きに使い、残りで見せる。
+  const fx = Math.max(400, M.fx(r.effectMs));
+  el.burstMecha.style.setProperty("--dur", Math.round(Math.min(fx * 0.7, 1100)) + "ms");
+
+  // フルハウス以上は大きい動き。プリズム・フォーカード・ピュアカラーが該当し、
+  // ワンペア〜スリーカード（出撃の86%）は控えめなままにしてテンポを守る。
+  const big = hand >= HAND.FullHouse;
+  el.burstMecha.classList.remove("show", "big");
+  void el.burstMecha.offsetWidth;
+  el.burstMecha.classList.add("show");
+  if (big) { el.burstMecha.classList.add("big"); }
+
+  // 踏み込みに合わせて作業台を揺らす（強い役だけ）
+  if (big) {
+    const mid = $("#mid");
+    mid.classList.remove("shake");
+    void mid.offsetWidth;
+    setTimeout(() => { mid.classList.add("shake"); }, Math.round(fx * 0.7 * 0.53));
+    setTimeout(() => { mid.classList.remove("shake"); }, Math.round(fx * 0.7) + 600);
+  }
+
+  el.burst.textContent = move.name + (r.guarded ? "（ガード）" : "");
+  el.burst.style.color = isPlayer ? "var(--good)" : "var(--bad)";
+  // なぜこの技になったのかが分かるように、支配メーカーも出す。
+  // 選ばせない以上、「組み方で技が決まる」ことが見えていないと学習できない。
+  const why = move.maker >= 0 ? MAKERS[move.maker] + "が主体" : "5社が1枚ずつ";
+  el.burstsub.textContent = why + " ／ " + HAND_NAME[hand]
+                          + " ×" + mul(hand).toFixed(2)
+                          + " → " + Math.round(r.damage)
+                          + (r.guarded ? "" : "・部位破壊 " + (move.strip ? 2 : 1));
+  el.burst.classList.remove("show"); el.burstsub.classList.remove("show");
+  void el.burst.offsetWidth;
+  el.burst.classList.add("show"); el.burstsub.classList.add("show");
+  const dur = Math.max(400, M.fx(r.effectMs));
+  BURST_ENDS = performance.now() + dur;
+
+  // 全画面マスク（5-4d）。ピュアカラーの動画と同じ覆いかたに、全ての役を揃える。
+  showVeil(hand, dur);
+  // 敵の攻撃だけ、画面のふちが赤く灼ける。
+  if (!isPlayer) { showEnemyFlash(hand); }
+
+  setTimeout(() => { el.burst.classList.remove("show"); el.burstsub.classList.remove("show");
+                     el.burstMecha.classList.remove("show"); },
+             dur);
+}
+
+
+/* =========================================================================
+   9. 入力 — 仕様書 7-1（v1.7: タップ1種類だけ。フリックは廃止）
+
+   カードのタップは buildCards() の中で直接つないでいる。
+   ========================================================================= */
+
+el.launch.addEventListener("click", () => { if (M && M.canAct() && M.me.bench.complete) { M.launch(M.me, M.cpu, true); } });
+
+// 自分の作業台を長押し＝ガード（6-2d）
+el.benchMe.addEventListener("pointerdown", () => M && M.playerGuard(true));
+el.benchMe.addEventListener("pointerup",   () => M && M.playerGuard(false));
+el.benchMe.addEventListener("pointerleave",() => M && M.playerGuard(false));
+el.benchMe.addEventListener("pointercancel",() => M && M.playerGuard(false));
+
+/* =========================================================================
+   10. 設定
+   ========================================================================= */
+
+const SLIDERS = [
+  ["s_flick", "flickMs",         (v) => v + " ms"],
+  ["s_ow",    "overwriteLockMs", (v) => v + " ms"],
+  ["s_disc",  "discardMs",       (v) => v + " ms"],
+  // ピュアカラーの倍率で見せる。抽象的な傾きより、最大値のほうが判断できる。
+  ["s_mul",   "mulScale",        (v) => "ピュア ×" + (1 + 1.5 * v / 100).toFixed(2), 100],
+  ["s_fx",    "fxScale",         (v) => v === 0 ? "なし" : v + " %"],
+  ["s_card",  "cardScale",       (v) => v + " %"],
+  ["s_hp",    "baseHp",          (v) => String(v)],
+  ["s_limit", "matchLimitSec",   (v) => Math.floor(v/60) + ":" + String(v%60).padStart(2,"0")],
+  // ms より「1体組むのに何秒か」のほうが判断できる。5枚 ×（フリック+間）。
+  ["s_start", "startLagMs",      (v) => ((CFG.flickMs + v) * 5 / 1000).toFixed(1) + " 秒 / 1体"],
+  ["s_floor", "floorLagMs",      (v) => ((CFG.flickMs + v) * 5 / 1000).toFixed(1) + " 秒 / 1体"],
+  ["s_step",  "stepLagMs",       (v) => "−" + (v * 5 / 1000).toFixed(1) + " 秒 / 1機"],
+  ["s_heal",  "healOnKill",      (v) => v + " %"],
+  ["s_ehp",   "enemyHp",         (v) => String(v)],
+  ["s_cpulag","cpuLagMs",        (v) => ((CFG.flickMs + v) * 5 / 1000).toFixed(1) + " 秒 / 1体"],
+];
+
+// scale は「スライダーの目盛 ÷ scale = 実際の値」。小数を扱う項目に使う。
+function syncSliders() {
+  for (const [id, key, fmt, scale] of SLIDERS) {
+    const k = scale || 1;
+    const inp = document.getElementById(id);
+    inp.value = String(Math.round(CFG[key] * k));
+    inp.parentElement.querySelector(".v").textContent = fmt(Number(inp.value));
+  }
+  document.getElementById("s_tap").value = CFG.tapMode;
+  document.getElementById("s_mode").value = CFG.endless ? "endless" : "match";
+  document.getElementById("s_cpu").value = CFG.cpu;
+  document.getElementById("s_supply").value = CFG.privateLines ? "private" : "shared";
+  document.getElementById("s_dev").value = CFG.dev ? "on" : "off";
+  document.getElementById("s_bg").value = CFG.gameBg;
+  applyDev();
+  applyGameBg();
+  applyCardScale();
+}
+
+/** テスト表示（入力カウンタ・自己診断）を盤面に出すかどうか。既定は出さない。 */
+function applyDev() {
+  document.body.classList.toggle("dev", !!CFG.dev);
+}
+
+/** ゲーム中に格納庫を敷くかどうか（clear=はっきり／dim=うっすら／off=無地）。 */
+function applyGameBg() {
+  document.body.classList.toggle("nogamebg", CFG.gameBg === "off");
+  document.body.classList.toggle("bgdim",    CFG.gameBg === "dim");
+}
+
+for (const [id, key, fmt, scale] of SLIDERS) {
+  document.getElementById(id).addEventListener("input", (e) => {
+    const raw = Number(e.target.value);
+    CFG[key] = scale ? raw / scale : raw;
+    e.target.parentElement.querySelector(".v").textContent = fmt(raw);
+    if (key === "cardScale") { applyCardScale(); }
+    // CPUの表示は「フリック時間 + 間」で出しているので、片方を動かしたら
+    // もう片方の表示も追従させる
+    if (key === "flickMs") {
+      const lag = document.getElementById("s_cpulag");
+      lag.parentElement.querySelector(".v").textContent =
+        ((CFG.flickMs + CFG.cpuLagMs) * 5 / 1000).toFixed(1) + " 秒 / 1体";
+    }
+    save();
+  });
+}
+
+document.getElementById("s_cpu").addEventListener("change", (e) => { CFG.cpu = e.target.value; save(); });
+document.getElementById("s_dev").addEventListener("change", (e) => {
+  CFG.dev = (e.target.value === "on"); applyDev(); save();
+});
+document.getElementById("s_bg").addEventListener("change", (e) => {
+  CFG.gameBg = e.target.value; applyGameBg(); save();
+});
+document.getElementById("s_mode").addEventListener("change", (e) => {
+  CFG.endless = (e.target.value === "endless");
+  save();
+  startMatch();
+});
+document.getElementById("s_tap").addEventListener("change", (e) => {
+  CFG.tapMode = e.target.value;
+  for (const c of cardEls) { c.last.state = ""; }   // 帯の文言を塗り直す
+  save();
+});
+document.getElementById("s_supply").addEventListener("change", (e) => {
+  CFG.privateLines = (e.target.value === "private");
+  save();
+  startMatch();   // 骨格が変わるので試合を作り直す
+});
+
+function applyCardScale() {
+  const k = CFG.cardScale / 100;
+  el.line.style.maxWidth = (100 * k) + "%";
+  el.line.style.margin = "0 auto";
+}
+
+// 既定値を変えたら鍵も変える。古い保存が新しい既定を上書きしてしまうため。
+const CFG_KEY = "robospeed.cfg.v6";
+function save() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (_) {} }
+function load() {
+  try {
+    const s = localStorage.getItem(CFG_KEY);
+    if (s) { Object.assign(CFG, JSON.parse(s)); }
+  } catch (_) {}
+}
+
+$("#gear").addEventListener("click", () => { $("#settings").classList.add("on"); });
+$("#s_close").addEventListener("click", () => { $("#settings").classList.remove("on"); });
+$("#s_restart").addEventListener("click", () => { $("#settings").classList.remove("on"); startMatch(); });
+$("#s_reset").addEventListener("click", () => {
+  Object.assign(CFG, {
+    flickMs: SPEC.flickMs, overwriteLockMs: SPEC.overwriteLockMs,
+    discardMs: 280, mulScale: 3.0, tapMode: "fast",
+    endless: true, startLagMs: 2000, floorLagMs: 300, stepLagMs: 220, healOnKill: 35, enemyHp: 700,
+    fxScale: 100, cardScale: 100,
+    baseHp: SPEC.baseHp, matchLimitSec: SPEC.matchLimitMs / 1000,
+    cpuLagMs: 900,
+  });
+  syncSliders(); save();
+});
+
+/* =========================================================================
+   11. 結果
+   ========================================================================= */
+
+function showResult() {
+  const avgBuild = M.stats.launches ? (M.stats.buildMs / M.stats.launches / 1000) : 0;
+
+  if (CFG.endless) {
+    $("#resulttitle").textContent = M.kills + " 機 撃破";
+    $("#resultnote").textContent =
+      "ここが「続ける？」で広告を出す瞬間になります。どこまで行けたかを控えてください。";
+  } else {
+    const won = M.cpu.hp <= 0 && M.me.hp > 0;
+    const timeout = M.me.hp > 0 && M.cpu.hp > 0;
+    $("#resulttitle").textContent = timeout
+      ? (M.me.hp > M.cpu.hp ? "時間切れ・判定勝ち" : M.me.hp < M.cpu.hp ? "時間切れ・判定負け" : "時間切れ・引き分け")
+      : (won ? "勝ち" : "負け");
+    $("#resultnote").textContent = "仕様書 9-5 の観点で、違和感があった数値を控えてください。⚙ から動かせます。";
+  }
+
+  const rows = CFG.endless ? [
+    ["倒した機体", M.kills + " 機"],
+    ["生き延びた時間", (M.t / 1000).toFixed(1) + " 秒"],
+    ["最後の敵の速さ", ((CFG.flickMs + M.cpuLag()) * 5 / 1000).toFixed(1) + " 秒"],
+    ["自分の出撃回数", M.stats.launches + " 回"],
+    ["平均の組み立て時間（自分）", avgBuild.toFixed(1) + " 秒"],
+    ["いちばん良かった役", M.stats.best >= 0 ? HAND_NAME[M.stats.best] : "—"],
+    ["図鑑", "新規 " + M.history.filter(e => e.isNew).length + " 体 ／ 通算 " + bookCount() + " / " + BOOK.keys.length],
+    ["上書き", M.stats.overwrites + " 回"],
+    ["引き直した枚数", M.stats.discards + " 枚"],
+    ["攻撃で剥がした部位", M.stats.stripped + " 個"],
+    ["ガードで受けた回数", M.stats.guards + " 回"],
+  ] : [
+    ["試合時間", (M.t / 1000).toFixed(1) + " 秒"],
+    ["自分の出撃回数", M.stats.launches + " 回"],
+    ["CPUの出撃回数", M.cpu.launches + " 回"],
+    ["平均の組み立て時間（自分）", avgBuild.toFixed(1) + " 秒"],
+    ["CPUの組み立て（設定）", ((CFG.flickMs + CFG.cpuLagMs) * 5 / 1000).toFixed(1) + " 秒"],
+    ["いちばん良かった役", M.stats.best >= 0 ? HAND_NAME[M.stats.best] : "—"],
+    ["図鑑", "新規 " + M.history.filter(e => e.isNew).length + " 体 ／ 通算 " + bookCount() + " / " + BOOK.keys.length],
+    ["上書き", M.stats.overwrites + " 回"],
+    ["引き直した枚数", M.stats.discards + " 枚"],
+    ["攻撃で剥がした部位", M.stats.stripped + " 個"],
+    ["ガードで受けた回数", M.stats.guards + " 回"],
+    ["カードの出どころ", CFG.privateLines ? "私有（各自4枚）" : "共有（中央4枚を取り合い）"],
+    ["山札の循環", CFG.privateLines
+        ? ("自分 " + M.me.line.recycles + " 回 / CPU " + M.cpu.line.recycles + " 回")
+        : (M.line.recycles + " 回")],
+    ["自分の残りHP", Math.ceil(Math.max(0, M.me.hp))],
+    ["CPUの残りHP", Math.ceil(Math.max(0, M.cpu.hp))],
+  ];
+  $("#restable").innerHTML = rows.map(r => "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td></tr>").join("");
+  $("#histgrp").innerHTML = renderHistory();
+  $("#result").classList.add("on");
+}
+
+/**
+ * 図鑑を描く。7役 × 5社の表で、1マスが1つの本体。
+ * マスの中に「集めた数 / そのマスの総数」を出す。未取得の本体は影絵。
+ */
+function renderBook() {
+  const total = BOOK.keys.length;
+  $("#bookcount").innerHTML =
+    "出した機体が記録されます。<b>" + bookCount() + " / " + total + " 体</b>。"
+    + "縦が役（グレード）、横が社（骨格）。武器と背中の組み合わせでマスの中が埋まります。"
+    + "<br>※ この版はブラウザに保存するため、サイトデータを消すと失われます。";
+
+  // マスごとに、そのマスに属するエントリ番号を集める
+  const cell = [];
+  for (let h = 0; h < 7; h++) { cell.push([[],[],[],[],[]]); }
+  BOOK.keys.forEach((k, i) => {
+    const a = k.split("/");
+    cell[+a[0]][+a[1]].push(i);
+  });
+
+  const MK = ["red","blue","yellow","green","purple"];
+
+  let html = '<table class="book"><thead><tr><th></th>';
+  for (let m = 0; m < 5; m++) {
+    html += '<th>' + MAKER_NAME[m] + '<span>' + MAKERS[m] + '</span></th>';
+  }
+  html += "</tr></thead><tbody>";
+
+  for (let h = 6; h >= 0; h--) {
+    html += '<tr><th class="side">' + GRADE_NAME[h] + "<span>" + HAND_NAME[h] + "</span></th>";
+    for (let m = 0; m < 5; m++) {
+      const ids = cell[h][m];
+      const got = ids.filter(i => BOOK.seen[i]).length;
+      const cls = got > 0 ? "on" : "off";
+      // タップでその1体だけの画面へ
+      html += '<td class="' + cls + '" data-h="' + h + '" data-m="' + m + '">'
+            + '<img src="' + MECHA_DIR + "h" + h + "_" + MK[m] + '.png" alt="">'
+            + '<span class="n">' + got + "/" + ids.length + "</span></td>";
+    }
+    html += "</tr>";
+  }
+  $("#bookgrid").innerHTML = html + "</tbody></table>";
+  BOOK.cell = cell;
+}
+
+/**
+ * 1体だけの詳細。仕様書 5-5。
+ * 説明は **会社 × グレード** の掛け合わせで作る。
+ * 12本の文章で35体ぶんをまかない、それぞれ違う紹介になる。
+ */
+function renderBookOne(h, m) {
+  const MK = ["red","blue","yellow","green","purple"];
+  const ids = BOOK.cell[h][m];
+  const got = ids.filter(i => BOOK.seen[i]).length;
+  const owned = got > 0;
+
+  let html = '<button class="btn" id="b_back">← 一覧へ</button>'
+    + '<div class="one' + (owned ? "" : " off") + '">'
+    + '<img src="' + MECHA_DIR + "h" + h + "_" + MK[m] + '.png" alt="">'
+    + '<div class="meta">'
+    + '<div class="ttl">' + MAKER_NAME[m] + " " + GRADE_NAME[h] + "</div>"
+    + '<div class="sub">' + MAKER_READ[m] + " ／ " + HAND_NAME[h]
+    + "（×" + mul(h).toFixed(2) + "）／ 技 " + MOVES[m].name + "</div>";
+
+  if (owned) {
+    // 旗艦だけは社の説明ではなく、その機体ぶんの大げさな一文を出す（5-5c）。
+    html += "<p>" + GRADE_DESC[h] + "</p>"
+          + "<p>" + (h === HAND.Pure ? FLAG_DESC[m] : MAKER_DESC[m]) + "</p>";
+  } else {
+    html += '<p class="unk">まだ出していない機体。組み上げて出撃すると記録される。</p>';
+  }
+  html += "</div></div>";
+
+  // 武器と背中の組み合わせ。このマスに何通りあり、どれを見たか。
+  html += '<h2 style="margin-top:16px">装備の組み合わせ　' + got + " / " + ids.length + "</h2>";
+  html += '<div class="grp"><table class="gear">';
+  for (const i of ids) {
+    const a = BOOK.keys[i].split("/");
+    const s2 = +a[2], s3 = +a[3];
+    const seen = BOOK.seen[i];
+    html += '<tr class="' + (seen ? "on" : "off") + '">'
+          + "<td>" + (s2 < 0 ? "素手" : MAKERS[s2] + "の" + HAND_GEAR[s2]) + "</td>"
+          + "<td>" + (s3 < 0 ? "背中なし" : MAKERS[s3] + "の" + BACK_GEAR[s3]) + "</td>"
+          + '<td class="mk">' + (seen ? "取得" : "—") + "</td></tr>";
+  }
+  html += "</table></div>";
+
+  $("#bookcount").textContent = "";
+  $("#bookgrid").innerHTML = html;
+  $("#b_back").addEventListener("click", renderBook);
+}
+
+/** 色の四角。ring は副色の印。 */
+function chipHtml(maker, ring) {
+  return '<i class="chip' + (ring ? " ring" : "")
+       + '" style="background:var(' + MAKER_VAR[maker] + ')" title="' + MAKERS[maker] + '"></i>';
+}
+
+/**
+ * 出撃の履歴表。1行が1機。
+ *
+ * 見たいのは「役が数字どおりに効いているか」なので、
+ * **5部位の色・役・技・ダメージを同じ行に並べる**。
+ * 色と役を別々に見せると、どちらが効いているのか分からない。
+ */
+function renderHistory() {
+  const h = M.history;
+  if (!h.length) { return '<p class="note" style="margin:0">出撃がありませんでした。</p>'; }
+
+  const body = h.map((e, i) => {
+    const chips = e.makers.map(m => chipHtml(m, e.sub >= 0 && m === e.sub)).join("");
+    const note = [];
+    if (e.guarded) { note.push("ガードされた"); }
+    if (e.lost.length) { note.push("破壊 " + e.lost.join("・")); }
+    if (e.killed) { note.push("撃破"); }
+
+    return '<tr class="' + (e.mine ? "mine" : "foe") + '">'
+      + '<td class="ix">' + (e.mine ? "自" : "敵") + '<b>' + (i + 1) + '</b></td>'
+      + '<td class="chips">' + chips + '</td>'
+      + '<td class="h">' + HAND_NAME[e.hand]
+      + '<span class="s">' + e.move
+      + (e.sub >= 0 ? "／副色 " + MAKERS[e.sub] : "") + '</span></td>'
+      + '<td class="n">' + e.dmg
+      + (e.desperate ? '<em class="des">背水×1.3</em>' : '')
+      + '<span class="s">' + (e.buildMs / 1000).toFixed(1) + '秒</span></td>'
+      + '<td class="k">' + note.join("<br>") + '</td>'
+      + '</tr>';
+  }).join("");
+
+  return '<table class="hist"><thead><tr>'
+    + '<th></th><th>頭 胸 腰 腕 脚</th><th>役 ／ 技</th><th>ダメージ</th><th></th>'
+    + '</tr></thead><tbody>' + body + '</tbody></table>';
+}
+
+$("#r_again").addEventListener("click", () => { $("#result").classList.remove("on"); startMatch(); });
+$("#r_settings").addEventListener("click", () => { $("#result").classList.remove("on"); $("#settings").classList.add("on"); });
+$("#r_book").addEventListener("click", () => { renderBook(); $("#catalog").classList.add("on"); });
+$("#b_close").addEventListener("click", () => { $("#catalog").classList.remove("on"); });
+// 表のマスをタップしたら、その1体だけの画面へ（5-5）
+$("#bookgrid").addEventListener("click", (e) => {
+  const td = e.target.closest("td[data-h]");
+  if (td) { renderBookOne(+td.dataset.h, +td.dataset.m); }
+});
+
+/* =========================================================================
+   12. 起動
+   ========================================================================= */
+
+function startMatch() {
+  M = new Match();
+  // 差分描画のキャッシュを捨てる。持ち越すと前の試合の表示が残ることがある。
+  for (const c of cardEls) { c.last.maker = -1; c.last.slot = -1; c.last.state = ""; c.dealt = false; }
+  for (const h of [el.benchMe, el.benchCpu]) {
+    for (const c of h._cells) { c.last = -2; }
+  }
+  el.handMe._last = null; el.handCpu._last = null;
+  el.hpMe._last = null; el.hpCpu._last = null; el.clock._last = null;
+  // どちらの骨格で遊んでいるかを、画面から分かるようにしておく。
+  // **自分側と同じ形（見出し＋小さな札）で書く。**
+  // 以前はここだけ長い一文で、左右で背の高さも読ませ方も揃っていなかった。
+  $("#capcpu").innerHTML = '<span class="hint">'
+    + (CFG.privateLines ? "当てると部位が壊れる" : "下の4枚を取り合う")
+    + "</span>CPU";
+  paint();
+}
+
+let last = 0, resultShown = false;
+function frame(now) {
+  if (!last) { last = now; }
+  const dt = Math.min(100, now - last);
+  last = now;
+
+  const paused = $("#settings").classList.contains("on")
+              || $("#result").classList.contains("on")
+              || $("#startgate").classList.contains("on");
+  if (M && !paused) {
+    M.tick(dt);
+    paint();
+    if (M.over && !resultShown) { resultShown = true; setTimeout(showResult, 700); }
+    if (!M.over) { resultShown = false; }
+  }
+  requestAnimationFrame(frame);
+}
+
+/*
+ * ページが入力を受け取っているかを、そのまま数える。
+ *
+ * 「一発目が反応しない」が、入口画面を足しても入力を二重化しても消えなかった。
+ * **そもそもイベントがページまで届いていない**可能性を切り分ける。
+ *   触って数字が増えない → ブラウザ／OS が食べている（窓の焦点合わせなど）
+ *   増えるのに何も起きない → こちらの実装の問題
+ */
+let tapCount = 0;
+for (const t of ["pointerdown", "mousedown", "touchstart", "click"]) {
+  document.addEventListener(t, (e) => {
+    tapCount++;
+    $("#taps").textContent = "入力 " + tapCount + " " + t.replace("pointer", "p").replace("mouse", "m").replace("touch", "t");
+  }, true);
+}
+
+/**
+ * スタート画面に戦歴を出す。**記録があるときだけ**図鑑ボタンも出す。
+ * 初回はボタンが1つだけで、押す先に迷わない。
+ */
+/**
+ * 入口に出す旗艦を、起動ごとに1体だけ選ぶ。
+ *
+ * 5体を並べると見栄えはするが、**遊ぶ前に 1.7MB を読ませる**ことになる。
+ * 1体なら 300KB で済むうえ、起動のたびに違う機体が出ること自体が
+ * 「5社ある」の説明になる。社名と後光の色も、選んだ社に合わせる。
+ */
+const GATE_FILE = ["red", "blue", "yellow", "green", "purple"];
+const GATE_CO   = ["#ff5a48", "#5a9dff", "#ffc23d", "#3fd39c", "#a97ef0"];
+function paintHero() {
+  const m = Math.floor(Math.random() * 5);
+  $("#heroimg").src = "mecha/game/h6_" + GATE_FILE[m] + ".png";
+  // 後光と社名の両方が引くので、**入口の親**に立てる（#hero に置くと社名まで届かない）
+  $("#startgate").style.setProperty("--co", GATE_CO[m]);
+  // 社名は出さない（入口で読ませても遊ぶ判断に効かない）。色だけが伝える。
+}
+
+function paintGate() {
+  const has = hasSaveData();
+  $("#gobook").style.display = has ? "" : "none";
+  if (!has) { $("#gatestats").innerHTML = ""; return; }
+
+  const rows = [
+    ["最高撃破", STATS.bestKills + " 機"],
+    ["最速", STATS.fastestMs ? (STATS.fastestMs / 1000).toFixed(1) + " 秒" : "—"],
+    ["平均", STATS.launches ? statsAvgSec().toFixed(1) + " 秒" : "—"],
+    ["図鑑", bookCount() + " / " + BOOK.keys.length],
+  ];
+  // 表で縦に積むと入口が伸びる。横に並ぶ札にして、絵の場所を残す。
+  $("#gatestats").innerHTML = rows.map(r =>
+    '<div class="st"><span>' + r[0] + "</span><b>" + r[1] + "</b></div>").join("");
+}
+
+// 入口。押されるまで走りは始まらない。
+// 押した瞬間から数えたいので、ここで試合を作り直す。
+/**
+ * 動画の再生を、最初のタップで解錠しておく（5-4c）。
+ *
+ * iOS は `muted` ＋ `playsinline` なら自動再生できるが、
+ * **低電力モードでは止まる。** ゲームスタートのタップという確実な操作の中で
+ * 一度 play() して即 pause() しておくと、以降の再生が通りやすくなる。
+ *
+ * 同じ仕掛けで、将来 **音を出す** 余地も残る（音は必ず操作が要る）。
+ * 失敗しても何も起きないだけなので、握り潰してよい。
+ */
+function unlockVideo() {
+  const v = $("#burstvid");
+  try {
+    v.muted = true;
+    const p = v.play();
+    if (p && p.then) { p.then(() => { v.pause(); v.currentTime = 0; }).catch(() => {}); }
+  } catch (e) {}
+}
+
+$("#gostart").addEventListener("click", () => {
+  unlockVideo();
+  $("#startgate").classList.remove("on");
+  last = 0;
+  startMatch();
+});
+
+$("#gobook").addEventListener("click", () => { renderBook(); $("#catalog").classList.add("on"); });
+
+// 起動時に役判定を全数照合し、さらに役の階段が色に食われていないかを検算する。
+// ここが赤ければ、ルールの写し間違いか、色の威力差が開きすぎている。
+buildCatalog();   // 図鑑の通し番号を作り、保存済みのフラグを読み込む（5-5）
+statsLoad();      // 戦歴（最高撃破・最速／平均の組み立て）
+paintGate();      // 記録があればスタート画面に出す
+paintHero();      // 入口の旗艦を1体えらぶ（起動のたびに変わる）
+const bad = verifyHands().concat(verifyLadder());
+const vb = $("#verify");
+if (bad.length === 0) {
+  // 正常なら画面を邪魔しない。結果は設定画面で見られる。
+  vb.style.display = "none";
+  $("#verifynote").textContent =
+    "役判定 5^5 = 3,125 通りを全数走査し、仕様書 4-1 の組合せ数と一致（C# 側の "
+    + "dotnet run -- verify と同じ検査）。役の階段も、全7役の境目で逆転なし。";
+} else {
+  vb.textContent = "検算が不一致";
+  vb.classList.add("ng");
+  $("#verifynote").textContent = "不一致: " + bad.join(" / ");
+}
+
+// 版の表示。読み込まれている版が古いと、直したはずの不具合がそのまま残って見える。
+const BUILD = "2026-09-04b 図鑑ボタンも鋼板";
+
+load();
+buildCards();
+buildBench(el.benchMe);
+buildBench(el.benchCpu);
+syncSliders();
+startMatch();
+requestAnimationFrame(frame);
+
+/**
+ * 上書きの経路を、起動時に自分で試す。
+ *
+ * 実機で「上書きできない」が続いたが、こちらでは再現しなかった。
+ * どの段で止まっているのかを **その環境自身に答えさせる。**
+ */
+function selfTest() {
+  const prevCpu = CFG.cpu;
+  const setup = () => {
+    CFG.cpu = "idle";
+    startMatch();
+    M.me.bench.install({ maker: 0, slot: 1 });     // 胸＝レッド
+    M.me.line.line[0] = { maker: 3, slot: 1 };     // グリーンの胸
+    paint();
+  };
+
+  try {
+    // ① ルールそのもの
+    setup();
+    const ok1 = M.playerOverwrite(0) && M.me.bench.maker[1] === 3;
+
+    // ② 上書きボタンが出ているか
+    setup();
+    const disp = getComputedStyle(cardEls[0].bOver).display;
+    const ok2 = (disp === "block");
+
+    // ③ ボタンを押したときに反応するか
+    let ok3 = false, evErr = "";
+    try {
+      cardEls[0].bOver.dispatchEvent(
+        new PointerEvent("pointerdown", { pointerId: 1, bubbles: true, cancelable: true }));
+      ok3 = (M.me.bench.maker[1] === 3);
+    } catch (err) { evErr = String(err.message || err); }
+
+    // ④ 画面の文字に出るか
+    paint();
+    const ok4 = el.handMe.textContent.indexOf("緑") >= 0;
+
+    const mark = (b) => (b ? "OK" : "NG");
+    const all = ok1 && ok2 && ok3 && ok4;
+    logAction(
+      "自己診断 ①ルール" + mark(ok1) + " ②ボタン表示" + mark(ok2)
+      + " ③押下" + mark(ok3) + (evErr ? "(" + evErr + ")" : "")
+      + " ④表示" + mark(ok4),
+      all ? "ok" : "ng");
+  } catch (err) {
+    logAction("自己診断が落ちました: " + String(err.message || err), "ng");
+  }
+
+  CFG.cpu = prevCpu;
+  startMatch();
+}
+
+$("#gatebuild").textContent = BUILD;
+selfTest();
+
+// 素材が揃ってから色付きを作り直す。
+// 読み込み前に作ると空の画像ができてしまうので、揃ってから塗り直す。
+loadParts().then(() => {
+  for (const h of [el.benchMe, el.benchCpu]) {
+    for (const c of h._cells) { c.last = -2; }
+  }
+  if (M) { paint(); }
+});
+</script>
