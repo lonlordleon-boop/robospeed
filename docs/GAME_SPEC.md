@@ -7892,6 +7892,62 @@ $("#gatever").textContent = "ver " + BUILD.split(" ")[0];
 
 **3つは別物。** どれか1つでは足りない。
 
+### 15-12. アプリを出すまでの手順 ★2026-09-27
+
+#### 3段ある。**真ん中を飛ばすと、古い中身のまま出る**
+
+```
+docs/playtest.html
+   ↓ ① node app/build-www.mjs
+app/www/
+   ↓ ② npx cap copy android          ← ここが抜けやすい
+app/android/app/src/main/assets/public/
+   ↓ ③ gradlew bundleRelease
+app-release.aab
+```
+
+`build-www.mjs` は **`app/www` を作るところで終わる。** そこから先へは運ばない。
+Android が実際に詰め込むのは `assets/public` のほうなので、
+**② を忘れると、前回のビルドで置かれた古い `index.html` がそのまま入る。**
+
+**ビルドは成功する。署名も付く。番号も上がる。** どこにも失敗が出ない。
+出来上がった AAB の中身だけが古い。
+
+#### 実際にやった（versionCode 8・2026-09-27）
+
+`app/www/index.html` が新しいことを確認して安心し、② を飛ばした。
+テスターが更新しても、画面の版表示は `2026-09-24a` のまま。
+
+```
+app/www/index.html                        2026-09-27a（新）
+app/android/.../assets/public/index.html  2026-09-24a（古い）← これが入った
+```
+
+Play に上げてしまったので **8 は使えない。**
+`versionCode` は戻せないため、入れ直したものを **9** として出した。
+
+#### 確かめかたは「AAB を開く」しかない
+
+`app/www` を見ても意味がない。**そこは入り口であって、中身ではない。**
+AAB は zip なので、そのまま開いて読める。
+
+```powershell
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$z = [System.IO.Compression.ZipFile]::OpenRead($aab)
+$e = $z.Entries | Where-Object { $_.FullName -eq 'base/assets/public/index.html' }
+```
+
+読み出した `const BUILD = ...` が、出したい日付になっていること。
+**ここまでやって初めて「ビルドできた」と言える。**
+
+署名の有無も同じところで分かる（`META-INF/*.RSA` があるか）。
+
+#### 手順を書き残していなかった
+
+15-5 に署名のことは書いてあったが、**①②③ の並びはどこにも無かった。**
+毎回うまくいっていたのは、続けて作業していて ② が記憶に残っていたから。
+**間が空くと落ちる。** だからここに置く。
+
 ---
 
 ## 参考リンク
