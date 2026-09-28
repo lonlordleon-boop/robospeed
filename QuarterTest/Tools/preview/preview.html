@@ -1,0 +1,1419 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<title>キャラクターツール</title>
+<style>
+  :root{ --ink:#1c1f26; --sub:#6b7280; --line:#d8dce4; --bg:#f6f7f9; --panel:#fff; --accent:#2f6fd0; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.6 "Segoe UI","Yu Gothic UI",system-ui,sans-serif;display:flex;flex-direction:column}
+  header{padding:14px 20px 10px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
+  header a{margin-left:auto;font-size:13px;color:var(--accent)}
+  h1{font-size:18px;margin:0 0 2px}
+  .lead{color:var(--sub);margin:0;font-size:13px}
+  main{flex:1;display:flex;gap:14px;padding:0 20px 18px;min-height:0}
+  #view{flex:1;position:relative;background:var(--panel);border:1px solid var(--line);
+        border-radius:8px;overflow:hidden;min-width:0}
+  #view canvas{display:block}
+  #hud{position:absolute;left:10px;bottom:10px;background:rgba(255,255,255,.9);
+       border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--sub)}
+  #tag{position:absolute;left:10px;top:10px;background:rgba(255,255,255,.94);
+       border:1px solid var(--line);border-radius:6px;padding:5px 11px;font-size:13px;font-weight:600}
+  #load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+        color:var(--sub);font-size:13px;background:var(--panel)}
+  aside{width:272px;flex:0 0 272px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .card h2{font-size:13px;margin:0 0 9px;font-weight:600}
+  .row{display:flex;flex-wrap:wrap;gap:6px}
+  button{font:inherit;font-size:13px;padding:6px 11px;border:1px solid var(--line);
+         background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
+  button:hover{border-color:#b6bdca}
+  button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* キャラの選び方：名前の広いボタンの下に、色違いの 1P〜4P を並べる */
+  .chargrp{margin-bottom:10px}
+  .chargrp:last-child{margin-bottom:0}
+  button.charname{width:100%;text-align:center;font-size:14px;font-weight:600;padding:8px 10px}
+  .prow{margin-top:5px;display:flex;gap:5px}
+  button.pbtn{flex:1;text-align:center;padding:5px 0;font-size:13px}
+  label.chk{display:flex;align-items:center;gap:7px;padding:3px 0;cursor:pointer}
+  input[type=range]{width:100%}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td{padding:3px 0;vertical-align:top}
+  td:first-child{color:var(--sub);white-space:nowrap;padding-right:10px}
+  .num{font-variant-numeric:tabular-nums}
+  .note{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.55}
+  kbd{background:#eef1f6;border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
+</style>
+
+<header>
+  <h1>キャラクターツール</h1>
+  <p class="lead">盤の上に立てる3Dキャラ。名前を選ぶと切り替わります。<b>元気少女</b>は色違いを 1P〜4P と呼び、1P が元の色です。</p>
+  <a href="index.html">← ハブへ戻る</a>
+</header>
+
+<main>
+  <div id="view">
+    <div id="tag">読み込み中</div>
+    <div id="hud">ドラッグ=回転 / ホイール=拡大縮小 / 右ドラッグ=平行移動 / <kbd>Space</kbd>で次のキャラ</div>
+    <div id="load">モデルを読み込んでいます…</div>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h2>キャラ</h2>
+      <div class="row" id="mBtns"></div>
+      <p class="note">カメラと再生位置は共通です。同じ角度・同じコマのまま切り替わるので、差だけが見えます。<kbd>Space</kbd>で順に切替。</p>
+      <p class="note">どのキャラにも6つの動き（Idle / Run / Skip / Walk_Adult / Walk_Child / Wave）が入っています。</p>
+    </div>
+
+    <div class="card">
+      <h2>福笑い（2段目の「福笑い」に置く）</h2>
+      <p class="note" style="margin:0 0 6px">眉・目・口を部品ごとに動かします。スライダーを動かすと「福笑い」に切り替わります。
+      「直立不動」にして、1P と切り替えながら位置を合わせてください。</p>
+      <div class="row" id="fwSwitch" style="margin-bottom:6px">
+        <button data-k="genki1p">元気少女</button>
+        <button data-k="fukuwarai_gyaru">ギャル少女</button>
+        <button data-k="fukuwarai_geijutsu">芸術少女</button>
+        <button data-k="fukuwarai_wanpaku">わんぱく少女</button>
+      </div>
+      <div style="font-size:12px;font-weight:600;margin:2px 0">福笑いのキャラの位置（表示だけ・元気少女は動かない）</div>
+      <div style="display:grid;grid-template-columns:40px 1fr 56px;gap:6px;align-items:center;font-size:12px">
+        <span style="color:var(--sub)">左右 X</span><input type="range" id="fwOx" min="-100" max="100" value="0" step="1"><span class="num" id="fwOxV" style="text-align:right">0.0 cm</span>
+        <span style="color:var(--sub)">上下 Z</span><input type="range" id="fwOz" min="-100" max="100" value="0" step="1"><span class="num" id="fwOzV" style="text-align:right">0.0 cm</span>
+      </div>
+      <div class="row" style="margin:4px 0 6px"><button id="fwOreset" style="font-size:11px;padding:2px 7px">位置を戻す</button></div>
+      <div id="fwCards"></div>
+      <div class="row" style="margin-top:6px"><button id="fwReset">全部 元に戻す</button></div>
+      <pre id="fwOut" style="font-size:11px;background:#f3f5f8;border:1px solid var(--line);border-radius:6px;padding:8px;margin:8px 0 0;white-space:pre-wrap"></pre>
+      <p class="note">決まったら、この数字を教えてください。焼き込みます（m・度）。</p>
+    </div>
+
+    <div class="card">
+      <h2>カメラ</h2>
+      <div class="row">
+        <button id="camGame" class="on">ゲーム視点</button>
+        <button id="camFront">正面</button>
+        <button id="camSide">真横</button>
+        <button id="camTop">真上</button>
+      </div>
+      <p class="note">「ゲーム視点」は盤面と同じ<b>正射影・伏角30度・方位45度</b>です。この角度でマス目がちょうど2:1の菱形になります。</p>
+    </div>
+
+    <div class="card">
+      <h2>表示</h2>
+      <label class="chk"><input type="checkbox" id="wire"> ワイヤーフレーム</label>
+      <label class="chk"><input type="checkbox" id="bone"> ボーン（骨の入り方）</label>
+      <label class="chk"><input type="checkbox" id="grid" checked> 地面グリッド（1マス=1m）</label>
+    </div>
+
+    <div class="card">
+      <h2>動きの大きさ（全身）</h2>
+      <input type="range" id="motion" min="0" max="150" value="100" step="5">
+      <div class="row" style="margin-top:6px">
+        <button class="mtp" data-v="30">0.3倍</button>
+        <button class="mtp" data-v="40">0.4倍</button>
+        <button class="mtp" data-v="50">0.5倍</button>
+        <button class="mtp on" data-v="100">等倍</button>
+      </div>
+      <div class="note num" id="motionInfo">1.00倍</div>
+      <p class="note">クリップ全体の動きを縮めます。<b>待機が動きすぎる時</b>はここを下げてください。
+      決まった値はGLBに焼き付けます（クレジット0）。</p>
+    </div>
+
+    <div class="card">
+      <h2>腕の振り（前後）</h2>
+      <input type="range" id="swing" min="0" max="200" value="100" step="5">
+      <div class="row" style="margin-top:6px">
+        <button class="swp" data-v="0">0（振らない）</button>
+        <button class="swp on" data-v="100">等倍</button>
+        <button class="swp" data-v="150">1.5倍</button>
+      </div>
+      <div class="note num" id="swingInfo">振り 1.00倍 ／ 前後の開き —</div>
+      <p class="note">アニメが持っている腕の振りを増減します。0にすると振らなくなり、
+      1.5倍にすると大きく振ります。<b>前後の開き</b>は、その瞬間の左手と右手の前後差です。</p>
+    </div>
+
+    <div class="card">
+      <h2>腕の広げ（左右）</h2>
+      <input type="range" id="arm" min="-45" max="45" value="0" step="1">
+      <div class="row" style="margin-top:6px">
+        <button class="armp" data-v="-20">−20</button>
+        <button class="armp on" data-v="0">0</button>
+        <button class="armp" data-v="20">+20</button>
+      </div>
+      <div class="note num" id="armInfo">補正 0度 ／ 実測 —</div>
+      <p class="note">こちらは体の横に開く量です（真下=0度・真横=90度）。振りとは別の軸です。</p>
+    </div>
+
+    <div class="card">
+      <h2>アニメーション</h2>
+      <div class="row" id="clipBtns" style="margin-bottom:10px"></div>
+      <div class="row" style="margin-bottom:8px">
+        <button id="play" class="on">一時停止</button>
+        <button id="prev">← コマ戻</button>
+        <button id="next">コマ送 →</button>
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <button class="spd" data-s="0.25">0.25倍</button>
+        <button class="spd" data-s="0.5">0.5倍</button>
+        <button class="spd on" data-s="1">等速</button>
+      </div>
+      <input type="range" id="seek" min="0" max="1000" value="0">
+      <div class="note num" id="time">0.00 / 0.00 秒</div>
+    </div>
+
+    <div class="card">
+      <h2>モデル情報</h2>
+      <table>
+        <tr><td>三角形</td><td class="num" id="iTri">—</td></tr>
+        <tr><td>ボーン</td><td class="num" id="iBone">—</td></tr>
+        <tr><td>アニメ</td><td id="iAnim">—</td></tr>
+        <tr><td>身長</td><td class="num" id="iH">—</td></tr>
+      </table>
+      <p class="note">見るべき点：<br>
+        ① 腕が体にめり込んでいないか（<b>真横</b>や<b>正面</b>で確認）<br>
+        ② 顔や胴がぐにゃりと歪まないか（コマ送りで確認）<br>
+        ③ 髪・リボン・リュックが団子になっていないか</p>
+    </div>
+  </aside>
+</main>
+
+<script src="faceparts.js"></script>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const BASE = "https://d8j0ntlcm91z4.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/";
+const HFIX = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/e4ed4f1e-fad2-43a5-af82-a1e406c30bd2.glb";
+const FINAL = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/74a6493e-0850-49d1-8776-17a609295701.glb";
+const ANIM5 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/9e5348a5-b97c-4ce8-9362-b4fb9687c33f.glb";
+const V2    = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/437d6774-2171-4804-84e9-651b751bb84f.glb";
+const V6    = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/0095e085-e42f-4f5e-aef5-bc8b24b0d011.zip";
+const V5    = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/fadf8f4f-4a28-4a4d-afd4-6f8892415618.zip";
+const V4    = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/07a28d7e-0f4b-4760-a3e2-c2d9d9d6b05f.zip";
+const V3    = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/e6aa216c-d177-433c-b3b0-9a11fa9d6a73.zip";
+const V17   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/2fb3d5d8-4fbf-4b9c-85fd-5ad7d1637a72.zip";
+const V18   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/6815e120-9f00-4567-9666-619b43e287cc.zip";
+const V20   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/c3d192dd-9e9a-4494-845d-e2251f46be0a.zip";
+const V27   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/fdad05d3-bbcb-4f8f-b61a-dbe2b699a1d2.zip";
+const V28   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/ffe97034-1e69-4dd2-901a-477a6ad138b5.zip";
+const V29   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/34d4b527-63f5-438b-b709-76ca06dfcd80.zip";
+const V30   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/1603c4d4-823e-47e7-9f96-78e30e3fe07b.zip";
+const V31   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/b3d337bc-9b07-4252-9cce-9be2d25bd200.zip";
+const V32   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/db30b38e-9b3f-4ac8-8991-4a61721a6e87.zip";
+const V33   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/82de7b5d-4aa4-47fc-872d-38113c9118a6.zip";
+const V34   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/d576753e-45b7-4da3-bae9-a5c7dbec4b81.zip";
+const V36   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/a7bdd7a3-14c1-46b6-ad81-94aa12ec707b.zip";
+const V37   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/61541d95-9a79-4f06-8574-b70208e116ef.zip";
+const V38   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/8fe26762-ec93-469e-97c9-04f85756694c.zip";
+const V39   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/bbab083c-a61a-466d-bf7b-0b06d939597f.zip";
+const P2    = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/711b86b8-cf9a-400e-afdb-5ff7b816654e.zip";
+const P3    = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/32069b05-198b-457f-8395-92f75b27eab1.zip";
+const P4    = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/f58ab525-e024-4446-b1c6-d5f74b8f7c2b.zip";
+const V55   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/048a0054-49eb-41c5-886b-bd1fe978a052.zip";
+// 元気少女 1P〜4P の右手首の折れを直した版（mirrorbone.py で左手首の動きを右へ鏡写し、手を振る以外の5本）。
+// 右手首の曲がり: 待機 38.5→3.7度、走り 31.8→17.8度、大人歩き 43.0→11.4度、スキップ 16.5→9.9度、子ども歩き 16.4→9.1度。
+// 書き出しで1コマずれた時間とクリップの並び順は timezero.py で元に戻した。1P は Unity の girl_v55.glb・girl_fbx.fbx と同じ
+const V55W  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/f78577e5-f880-49a8-998b-b673c5a4e56a.zip";
+const P2W   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/bccf1e92-f471-4a8d-ab10-250b7e6bd57b.zip";
+const P3W   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/c39431a6-6d54-46d0-8b3b-ade74c5b12d0.zip";
+const P4W   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/048bfbe4-cbdb-4092-8e37-c97eb293d2bc.zip";
+const V46   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/7da09e44-61ac-44ca-9ccc-40ecaa45afca.zip";
+const V44   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/b07debd5-0839-44ed-841d-3d2ae8255e1e.zip";
+const V43   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/22087e21-5a22-435a-8dc7-4c1c58885bd1.zip";
+const V42   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/2d2d9d0d-6281-41ae-98fe-0279daaf4e1e.zip";
+const V41   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/84471aef-9dc6-42c8-ae30-a6732f73b489.zip";
+const V40   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/7ff94df8-edba-4016-8e4f-15257257d7cc.zip";
+// ここから下は作っている途中の版。確定したものは下の MODELS に並べてある。
+// 見比べたくなったら、この中の行を MODELS に移せばよい。
+const OLD_MODELS = [
+  { key:"v55", label:"v55：手を振る Wave・手を外へ出し、首を反対へ傾げた版（Unityに入っている版）／1人目", url: V55 },
+  { key:"v46", label:"v46：歩きをスキップ0.4倍に差し替え＋全クリップの床合わせ", url: V46 },
+  { key:"v44", label:"v44：腕を5度外へ開いた版（歩きは前のまま）", url: V44 },
+  { key:"v43", label:"v43：手足と胴のうねりをならした版（腕を開く前）", url: V43 },
+  { key:"v42", label:"v42：v41 の口を、開いた笑顔に描き直した版（ならす前）", url: V42 },
+  { key:"p2",  label:"2人目：緑シャツ・紫パンツ・桃ランドセル（色替え・Wave入り）", url: P2 },
+  { key:"p3",  label:"3人目：青シャツ・緑パンツ・水色ランドセル（色替え・Wave入り）", url: P3 },
+  { key:"p4",  label:"4人目：紫シャツ・青緑パンツ・橙ランドセル（色替え・Wave入り）", url: P4 },
+  { key:"v41", label:"v41：v40 の形に、三面図でテクスチャを貼り直した版（口は閉じたまま）", url: V41 },
+  { key:"v40", label:"v40：新しい三面図からモデルごと作り直した版（テクスチャは生成そのまま）", url: V40 },
+  { key:"v39", label:"v39：前のモデルに新しい三面図で貼り直した版", url: V39 },
+  { key:"v38", label:"v38：前の三面図＋指示付きの版", url: V38 },
+  { key:"v37", label:"v37：新しい三面図で貼り直した版", url: V37 },
+  { key:"v36", label:"v36：前の三面図で貼り直した版", url: V36 },
+  { key:"v34", label:"v34：元のテクスチャ（頬の髪の先だけ手直し）", url: V34 },
+  { key:"v33", label:"v33：テクスチャは元のまま（形と重みの修正のみ）", url: V33 },
+  { key:"v32", label:"v32：テクスチャを塗り替えた版（かえって悪化したので不採用）", url: V32 },
+  { key:"v31", label:"v31：耳の上の髪に乗っていた肌色を塗り直した", url: V31 },
+  { key:"v30", label:"v30：腰から布が飛び出すのを直した", url: V30 },
+  { key:"v29", label:"v29：腰の重みの判定を直した途中版", url: V29 },
+  { key:"v28", label:"v28：服の穴を直し・テクスチャの島を塗り広げ", url: V28 },
+  { key:"v27", label:"v27：靴の重み分け直し＋髪の重み掃除＋踏み込みならし（服に穴あり）", url: V27 },
+  { key:"v20", label:"v20：v18＋歩きの背骨の横倒しを整えた", url: V20 },
+  { key:"v18", label:"v18：元の歩き30のまま・重みの掃除のみ", url: V18 },
+  { key:"v17", label:"v17：歩きを walking_2(566) に差替", url: V17 },
+  { key:"v6",  label:"肩ひかえめ版（肩下げ0.022）", url: V6 },
+  { key:"v5",  label:"肩しっかり版（肩下げ0.045）", url: V5 },
+  { key:"v4",  label:"骨修正版2（足を離した・左右対称）", url: V4 },
+  { key:"v3",  label:"骨修正版1（胴x1.33・肩-0.045）", url: V3 },
+  { key:"v2",  label:"最新版（Walk_Child 調整済）", url: V2 },
+  { key:"a5",  label:"調整前（アニメ5種）", url: ANIM5 },
+  { key:"fin", label:"確定版（スキップのみ）", url: FINAL },
+  { key:"hfx", label:"頭固定版（焼付前）", url: HFIX },
+  { key:"a45", label:"腕41度（頭そのまま）", url: BASE+"hf_20260908_072713_8ca2ccff-3144-4629-a46a-dd3e831325bf.glb" },
+  { key:"tpo", label:"Tポーズ版",     url: BASE+"hf_20260908_070743_e0d70a41-1c35-4acd-b2ac-032704c6dc3f.glb" },
+  { key:"old", label:"最初の版（腕を下ろした絵）", url: BASE+"hf_20260908_060241_1f815823-7a8c-47db-ac5e-1189091201e6.glb" },
+];
+
+// 並べてあるキャラクター。
+// 元気少女は最初に作ったキャラで、服とランドセルの色を変えたものを 1P〜4P と呼ぶ。
+// 1P が元の色（Unity に入っている版）。どれも6つの動き
+// （Idle / Run / Skip / Walk_Adult / Walk_Child / Wave）が入っている。
+// 秀才少女とお嬢様はまだ作りかけで、動きは歩き1本だけ。
+//
+// 1回目の秀才少女。頭が小さく、メガネの枠が立体だったので顔が凹んでいた版
+const SHUSAI_V1 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/0f15aac2-188d-40d8-93ec-8b0422ae9b0c.zip";
+const SHUSAI = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/5055d860-40ec-4897-9965-9255965b08ef.zip";
+const OJOU   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/9cae4c6d-cb84-402d-ad11-575f59592a2f.zip";
+const OJOU_ES = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/9184440b-64e1-4fad-8bf6-40ee0b5baedf.zip";
+// v55（元気少女1P）の顔の絵を写した試し。facecopy.py で、左目・右目・口の中心が重なるように
+// 秀才少女とお嬢様（小学生）の顔へ写した。形は元のまま、顔の絵だけが v55。メガネの線は残してある。
+// 元気少女の 1P〜4P の下に、2段目のボタンとして並べる（row:2）
+const SHUSAI_V55FACE = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/9406f981-5894-4eec-8002-b81b3844d8ad.zip";
+const OJOU_V55FACE   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/a9125534-b73a-45fd-8be0-40f62ea250c9.zip";
+// お嬢様（小学生）の作り直し。v55 から目・眉・口を消した絵（faceerase.py）を下絵に、髪と服だけ描き替えた
+// のっぺらぼう＋鼻の三面図から生成 → 貼り直し → v55 と同じ胴伸ばし（rebake 1.33）→ v55 の6つの動きを移植
+// → 全クリップ床合わせ → 骨を素の姿勢に戻して facecopy.py で v55 の顔を写した版
+// 1回目（d5b53921…）は肌の色合わせの倍率を白目にも掛けていて、白目が水色がかっていた。肌だけに掛けて直した版
+// 2回目（90db5985…）は顔全体を写したので、手本と写す先の肌が混ざって肌荒れに見え、舌にひびの線も出ていた。
+// 今の版: 右手首を左の鏡写しに（mirrorbone.py、手を振る以外の5本）→ 顔の前面の法線をσ3cmでぼかす（facesmooth.py n）
+// → 目・口・鼻の点だけを切り出して貼る（facecopy.py の目と口だけ）。肌は作り直したお嬢様自身のもの
+// 3回目（c98bca06…）は動きを animgraft.py で移していて、腰の骨の向きが v55 と 157度違うせいで体がねじれて傾いた。
+// animretarget.py（骨の向きの違いを直して移す）で移し直し → 床合わせ → 右手首の鏡写し → 法線 → 目と口、とやり直した版
+// 4回目（c9893617…）は目と口を3Dから3Dへ直接写していた。
+// 今の版: v55 の顔から目と口だけを透明な背景の1枚の絵に切り出し（facedecal.py → Tools/preview/元気少女の目と口.png）、
+// その絵を mouthpaste.py で正面から貼った。中心 x 0.000 z 0.773、幅 0.392 高さ 0.225（目の間隔の比 0.98 で縮めた）
+const OJOU_NEW = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/31976d24-4f2a-4791-b0a0-563403f4589a.zip";
+// 新お嬢様から目と口を外した版（貼る直前の同じモデル。顔の前面の法線をならしただけ）。
+// 肌がもともと汚いのか、貼ったせいなのかを見比べるため、2段目の「お嬢様」ボタンをこれの「外す」に替えた
+const OJOU_NEW_NOFACE = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/33a01948-57f3-40c4-8c2b-0a48d8fcdf1b.zip";
+// 貼り直しで肌がくすんでいた（三面図 (1.00, 0.82, 0.72) → 貼り直し後 (0.87, 0.77, 0.69)）。
+// skinmatch.py で肌の画素だけ三面図の色に戻した版に、上の2つ（新お嬢様・外す）を差し替えた
+const OJOU_NEW_SKIN        = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/e0814800-f7fd-4896-8ff0-07bd8560cfb2.zip";
+const OJOU_NEW_NOFACE_SKIN = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/4743257c-14ba-4caa-8d39-d99431e4cbf3.zip";
+// 上の「外す」に、v55 の鼻の点を素体の絵へ焼き込んだ版（元気少女の鼻.png、中心 x -0.0013 z 0.7697）。
+// 「外す」と「福笑い」はこれを使う。福笑いは眉・目・口をページの上で貼る（下の「福笑い」の欄）
+// 福笑いで決めた位置で、眉・目・口を焼き込んだ新お嬢様（partpaste.py、元は上の鼻の点あり版）。
+//   左眉 x -0.0972 z 0.9280 幅 0.0754 傾き 8 ／ 右眉 x 0.1010 z 0.9240 幅 0.0701 傾き -5
+//   左目 x -0.0909 z 0.8367 幅 0.1542 傾き 2 ／ 右目 x 0.1077 z 0.8396 幅 0.1542 傾き -1
+//   口   x -0.0022 z 0.7187 幅 0.1567 傾き 0
+// 書き出しでクリップが1コマ（1/24秒）後ろにずれていたので、timezero.py で 0 秒始まりに戻した版に差し替えた。
+// ずれたままの版: https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/27c3d901-c3a3-43cc-8fd5-5323bee81f70.zip
+// v55 の手順で作り直した版に差し替えた（貼り直しを文章の指示つき・enable_pbr:false でやり直し、靴の左右分け、
+// 手足と胴のならし、首の黄色と紺のボタン列の塗り直し、頬の赤み、縁の塗り広げ、PNG）。
+// 作り直す前の版: https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/47c40218-a342-4927-8c57-7fb7112bea50.zip
+// 福笑いで再調整して焼き込み直す前: bd18a64f-d768-4cf5-a9ce-ea5a4ce16594
+const OJOU_NEW_BAKED = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/37866474-88a8-40cd-afdb-28b61d4556a6.zip";
+// 1コマずれを直す前: https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/a5b3a46d-cb3d-4ba7-a885-888649811be1.zip
+// 作り直す前の版: https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/bd2e8c0f-70aa-43ee-a0b7-2a13a6e26671.zip
+const OJOU_NEW_NOFACE_NOSE = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/f9f64d2d-041c-452c-b1a5-60aa96588c2f.zip";
+// お嬢様（小学生）2P〜4P。上の OJOU_NEW_BAKED のカーディガンとスカートに色を乗せた（tintcloth.py → texpad.py）
+// 再調整前: 2P ca043ec8-5aa6-4dee-b2c1-caadf564fea2 ／ 3P 915c6913-8abe-44d4-8b56-15bdef101643 ／ 4P 51b6cbda-71c1-4b5c-a38b-6aae2ce258b4
+const OJOU_2P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/0c43c229-0a03-4fbd-ac16-924f97347369.zip";
+const OJOU_3P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/758c8e10-d1ec-4b8f-b995-ff51fe5d24b9.zip";
+const OJOU_4P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/313d0f82-6c6e-4efe-a339-950fafff3a32.zip";
+// 秀才少女（小学生）の作り直し。新お嬢様と同じ手順（v55 の顔なし全身を下絵にした三面図 → 生成 → 貼り直し → 仕上げ）。
+// 目・口・眉は、福笑いで決めた新お嬢様の位置を、あごの高さと顔の縦横の比（縦1.08・横1.06）で換算して焼き込んだ仮の位置。
+// メガネはまだ付けていない（あとから部品として貼る）。作り直す前の版は上の SHUSAI
+// スキップで顔が歪んだ（顔に腰・腕の重みが混ざっていた）ので headclean.py（首の2cm上から6cmかけて頭だけへ）を掛け、
+// ランドセルが腕に引っ張られたので bindpart.py（背中側の本体を胴の平均の重みへ、境目4周は段々に）を掛けた版に差し替えた。
+// 直す前: 顔あり 17e12200-7abc-49d2-9c86-0b806e4848cd.zip ／ 顔なし 94d7c0ad-1a41-4e95-a6d3-d2f7965b42fe.zip
+// 眉が欠けた版（部品を塗る三角形の選び方の不具合）: 509bd2b8-b062-4786-8175-e03c46e0ba05
+// 福笑いで再調整して焼き込み直す前: 745e8751-f3b0-4738-b564-59ec96744dfa
+const SHUSAI_NEW        = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/3860ee24-aff2-4ffa-a5ec-ff98dec8628f.zip";
+const SHUSAI_NEW_NOFACE = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/3c36f435-919d-4c2e-82ac-471b7b7fd67f.zip";   // 目・口・眉を貼る前（鼻の点あり）
+// 秀才少女（小学生）2P〜4P。上の SHUSAI_NEW の灰色のベストに色を乗せ（tintcloth.py、白いブラウスは明るさで外す）、
+// 赤チェックのスカートの赤を別の色相へ塗り替えた（recolor.py）。
+// ランドセルを赤のまま残した版は、内股にスカートの色が付き、ランドセルにも色が映ったので、
+// ランドセルと肩ベルトもスカートと同じ色へ塗り替え、肌の面だけを元の絵に戻した版（restorered.py skin）に差し替えた。
+// ランドセル赤のままの版: 2P d7e5034c-3dab-4aa2-9968-1eed750554d4 ／ 3P ee134d4d-a4b0-482d-8c27-7b7fd83f46d6 ／ 4P 50aafe3b-0be1-480d-8c3f-739b2a67b488
+// 眉が欠けた版: 2P d48c67c3-8130-4db1-9ece-1520f5553e6d ／ 3P 640f357d-df76-43e6-82d5-287d58a6bbf9 ／ 4P df77d473-63af-44ee-b8fd-a8a8e136283c
+// 再調整前: 2P 35281598-b864-4cf3-b3ef-d512a3fcf289 ／ 3P c6209fe9-b497-4aff-b872-5e4f19e89dc8 ／ 4P 339bad0c-969a-4f8d-80f6-d98d1eb84285
+const SHUSAI_2P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/ff9f189b-d13c-4497-aefa-268b5182e5b5.zip";
+const SHUSAI_3P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/a4ebecfe-8f0f-4d9c-b4f5-8702998e0307.zip";
+const SHUSAI_4P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/596b204a-365a-40ba-a185-7077c3be62d4.zip";
+// ギャル少女（小学生）。候補5案の1（金髪ツインテール・ピンクのパーカー・デニムのスカート）を、秀才少女と同じ手順で作った。
+// 最初の三面図は頭が小さく体が長く描かれ（頭の割合 約40%）、生成も同じ体型になったので、
+// 三面図の絵を加工（あごより上を1.2倍、下を縦0.875倍）して頭の大きさを秀才少女とそろえてから生成し直した。
+// 貼り直しが白い目の枠・口の線・鼻の丸を描いたので肌色で消し、青いハートのピンと紺の紐をピンクへ塗り替えた。
+// 目・口・眉は、福笑いで合わせた位置を焼き込んだ。眉は前髪の下に隠れるように、元の絵の肌の画素にだけ描いた（partpaste.py）。
+// 仮の位置（秀才少女の位置を初期値にしたもの）で焼いた版: 897d7127-da0d-447d-82b8-5be663871dc2
+// あご〜頬の横の肌がくすんで（セメント色に）見えたので、三角形ごとに元の絵の色で肌か髪かを分けて肌の明るさを掛け直し、
+// 残った黄緑〜灰色の斑を近くの肌の色で塗り直した版に差し替えた。直す前: 顔あり 2bf8b4f7-1341-449f-a831-572cbf94c2fa ／ 顔なし a8ee60d4-88d2-4aa0-9684-0ef23d7e3243
+// さらに、耳の下〜あごの後ろの肌に貼り直しが髪の色を塗っていたのを、生成直後の絵で肌と分かる所だけ肌の色に塗り直し（genskin.py）、
+// 脚の肌のしみを、色みをそろえて明るさをならして塗り直した（legpaint.py）版に差し替えた。
+// 直す前: 顔あり b8d789d9-f62b-46b3-8476-f32ff8229056 ／ 顔なし 7cbd011b-590c-4cd6-b312-58714cac544d
+// さらに、ツインテールの先の黒・青を髪の色に、パーカーの蛍光ピンクの点をパーカーの色に、右耳の前の暗い三角形を周りの肌の明るさに塗り直し、
+// しみのあった左手に右手の絵を鏡に写した（colorfill.py / mirrorhand.py）版に差し替えた。耳の裏は塗っても見た目が変わらなかったので触っていない。
+// 直す前: 顔あり 4451c152-070e-4cc2-8950-efda84ba69d1 ／ 顔なし 54ac9d73-3cb3-4bbc-b711-f378bc481724
+// さらに、パーカーの背面の筋・まだら・フード先の濃いピンクを近くの普通のピンクでならし、フードの首回りの明るいしみ（蛍光ピンクに見えた所）を塗り直した（hoodclean.py）版に差し替えた。
+// 直す前: 顔あり b2ce6197-14ab-4aac-8f6f-96925ee46c02 ／ 顔なし 38f637cb-57a2-49bd-a344-cd465da7a98f
+// さらに、パーカー全体を三面図のような淡いピンク（色相 -0.063・鮮やかさ 0.19）の一色に塗り直し（濃淡だけ元の絵を残す・hoodrecolor.py）、
+// このプレビューの光で背中側が暗く見えないよう、光の弱い向きの面ほど絵を明るくした（最大 1.25 倍・lightcomp.py）版に差し替えた。
+// 直す前: 顔あり b8065969-b72a-42eb-9893-7a6a13c729ad ／ 顔なし 4e13a3e8-e2b8-40ae-8247-2b65f6f8053d
+const GYARU_NEW        = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/24be33e4-4ed1-46d0-84ba-ce47fdfafa1e.zip";
+const GYARU_NEW_NOFACE = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/fc06bcdb-9efc-4880-85f5-35a6679b7e1a.zip";   // 目・口・眉を貼る前（鼻の点あり）
+// ギャル少女の 2P〜4P: 1P のパーカーと髪のゴムの色み（色相・鮮やかさ）だけを替え、明るさ（濃淡・背中側を明るくした分）は 1P のまま（hoodrecolor.py / scrunch.py）。
+// 色はお嬢様の淡い色に合わせた: 2P 淡い緑（色相 0.31・鮮やかさ 0.24）、3P 淡い水色（0.567・0.31）、4P 淡い紫（0.746・0.22）。
+const GYARU_2P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/885a1377-b7b3-48a2-a877-029f54a28bd4.zip";
+const GYARU_3P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/60aaf1ec-4ed8-45e9-a946-51f28728402a.zip";
+const GYARU_4P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/a204f186-64eb-4bd7-9015-212ee6bfa94d.zip";
+// 4人の 1P〜4P に、その場で跳ぶ「Jump」を7番目のクリップとして足した版（jump/addjump.py → timezero.py）。
+// 既存の6本はそのまま（書き出し直し前後で骨の位置のずれ 0.001cm 以内）。上の定数（足す前の版）は残してある。
+// Jump は 22 コマ（0.92 秒）: しゃがむ → 8コマで踏み切り → 11コマ空中 → 15コマ着地。空中の弧はゲーム側で付ける。腕は既存の動きの範囲（最大72度）に収めた
+// 注: Unity の girl_v55.glb・girl_fbx.fbx にはまだ Jump を入れていない（元気少女 1P の「Unityに入っている版」は、Jump 以外が同じ）
+const GENKI_1P_J  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/7779a453-41f3-418a-b23b-a17086c22db8.zip";
+const GENKI_2P_J  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/b7c59fbb-7828-4411-add5-bb7bf236ceb8.zip";
+const GENKI_3P_J  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/04fd0ed5-3506-4ccf-8565-cb2d0883bc2b.zip";
+const GENKI_4P_J  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/d921dc89-321e-49fa-a11c-8c289293b483.zip";
+// お嬢様の鼻をギャル少女に合わせて直した（nosebump.py の手本モード、法線は orig 方式）。鼻の色は動かさず、鼻先を色の上へ移した。
+// 直す前の版: 1P 7d058a34-14ea-400f-8340-c19c39afe7f3 ／ 2P 5816170d-6a21-402e-b45f-43b89643dc5d ／ 3P eaa7af4f-8cbf-4054-a41a-9c9c40bf49d2 ／ 4P 67ece962-d29b-4d08-9aa5-b72a869744fe
+const OJOU_1P_J   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/9545f720-a1c5-4834-882f-2d5fa786a3a9.zip";
+const OJOU_2P_J   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/09bd6002-e4f5-4472-b0ad-9de061bd5d27.zip";
+const OJOU_3P_J   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/aacfb532-b192-4561-872b-fcd5814865e1.zip";
+const OJOU_4P_J   = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/db287f3b-74d6-4b4d-bc4a-fa62454a83b5.zip";
+const SHUSAI_1P_J = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/f8a13ae9-608e-49d0-a553-5399dd9768aa.zip";
+const SHUSAI_2P_J = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/1a8f919f-d1e6-4930-a09e-5acad640a9bf.zip";
+const SHUSAI_3P_J = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/46c55908-6fa8-4550-93f7-bfc208fed221.zip";
+const SHUSAI_4P_J = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/e6654472-1585-47ad-9d65-01397952277b.zip";
+const GYARU_1P_J  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/f628c809-6045-477e-9b19-6a417a6b5795.zip";
+const GYARU_2P_J  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/16af3ebb-68fb-4083-b41c-d6b67e7991d8.zip";
+const GYARU_3P_J  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/a875269a-fc55-4557-b170-bfcae00095f4.zip";
+const GYARU_4P_J  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/6319e2f9-209c-4a70-bcc9-21013406817c.zip";
+// 制作中の2人。貼り直し→骨の移し替え→形を整える→v55 の動き6本、まで済み（顔貼り・肌の色合わせはまだ）
+// 生成直後の版: 芸術 28dfd759-6c20-4ba0-8558-e65d421b6141 ／ わんぱく 3d2a5aaf-72ab-4c6e-b5b0-b8b30df11482
+// 頭だけ大きくした（headscale.py）。顔の輪郭の幅（髪は入れない）を、preview 上で既存4人の平均 0.290 にそろえた。
+// 芸術 ×1.19、わんぱく ×1.64。頭を大きくする前の版: 芸術 e0090145-c4c2-4839-b3f3-0b686786ddfa ／ わんぱく 4c587c8e-df1e-4d75-8d54-36dd8f39484c
+// 顔の凹凸（生成が勝手に彫った目）を facefit.py で消し、頭を headscale.py で広げ（芸術 ×1.19、わんぱく ×1.35 と15度起こす）、鼻の点を貼った。
+// 芸術は骨の首の関節が低く、首の高さでそろえると背が高く見えるので、表示で ×0.90（scaleAdj）。
+// ひとつ前の版: 芸術 db106013-5a6a-4057-b52d-64efdb8f19e5 ／ わんぱく 635f5c65-98de-4012-a964-8e0c0fecb0db（頭×1.64・うつむき・鼻なし）
+// 鼻が色の点だけで形が無かったので、nosebump.py で鼻のまわりを細かく割り、約1cm盛り上げた（新お嬢様の鼻と同じ高さ）。
+// ひとつ前の版（鼻の点だけ）: 芸術 04cd6f64-b667-4bc8-9ec1-4a0358a12761 ／ わんぱく 6de751c6-6627-4bd0-ab07-a942d1324066
+// 約1cmでは「イボ程度」だったので、ギャル少女の鼻の形（高さ約2.7cm）を顔の幅の比 0.94 で写した（nosebump.py の手本モード）。
+// 鼻の色は動かさず、鼻先を色の中心の約7mm上に置いた（ギャル少女・秀才少女は色が鼻の下＝鼻の影）。法線は元の顔の向きへ 80% 寄せた。
+// ひとつ前の版（約1cmの盛り上がり）: 芸術 9cf4a6c8-2db2-4d0c-a22d-e6675c216e38 ／ わんぱく 7f8dda07-6b88-4e6a-b9dd-79fefcd6de44
+// 顔の輪郭（髪を除いた肌のふち）を、preview と同じ縮尺で元気少女・ギャル少女と重ねて合わせ直した。
+//   芸術: 顔が 11% 小さく、あごが 5cm 高かった → 表示 ×0.815（あごの高さ）、頭 ×1.24（顔の幅）
+//   わんぱく: 顔が 16% 小さかった → 頭 ×1.19。鼻が 2.6cm 高かったので、鼻の点を下げて貼り直した
+// facefit.py が継ぎ目の頂点の片方だけを動かし、顔にすき間（最大 39mm）が開いていたのを直して作り直した（目の高さの線・でこぼこの原因）。
+// 顔の肌の絵を skinclean.py でそろえ、肌の法線を skinnormal.py でならした。
+// ひとつ前の版（ギャル型の鼻）: 芸術 8c6997fe-8d9e-437a-a78c-11076ac8da18 ／ わんぱく 58e56257-6c5e-43ae-bb3c-84ec29c28934
+// 体が小さかった（ギャル少女に対して 芸術 肩幅 −27%・腕 −15%、わんぱく 肩幅 −13%・腕 −24%）ので、bodyscale.py で
+// 首から下を広げ、腕を伸ばした（頭はそのまま）。芸術 左右1.38 高さ1.08 前後1.19 腕1.18、わんぱく 1.12 1.02 1.06 1.32。
+// 首の関節が高さの倍率だけ上がるので、顔の大きさを保つため scaleAdj も同じ倍率にした（芸術 0.815→0.880、わんぱく 1.0→1.02）。
+// ひとつ前の版（輪郭合わせ）: 芸術 e1ac8de8-adb5-4053-b8a3-c0cf479dd48a ／ わんぱく e1feb89d-896b-4b52-933a-7afa0233fc4b
+const GEIJUTSU_RAW = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/6354b894-3a2a-418a-b28f-98b232d7ec32.zip";
+// わんぱく：顎の下が平らで「削れて」見え、頭が縦に長かった（てっぺん 0.959、元気 0.912・ギャル 0.920）。
+// headscale.py の支点を「あごの一番下」に変えて顔をならした段階から作り直した（×1.61、起こす角度 15→10 度、縦 0.92 倍）。
+// 元の方式では、あごの下の頂点が首と重みを分け合っていて広がらず、平らに潰れていた。15 度起こすとその平らな裏側が正面から見えた。
+// ひとつ前の版（体の大きさ合わせ）: わんぱく 5a7906a2-7866-4054-8758-f64c8783e027
+// スキップで肩掛け鞄が腕に引っ張られて伸びた。鞄に右腕・右脚の重みが混ざり、右手の指と鞄が同じ三角形でつながっていた。
+// bagrig.py（鞄・ベストを胴の骨だけに）→ partrip.py（手と鞄のつながった三角形を切り離す）で直した。
+// ひとつ前の版（あご直し）: わんぱく 13790ed4-f91b-47b4-85f0-b40a01ecd555
+const WANPAKU_RAW  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/99e4ea64-fb08-425a-8db3-6011c86bec3c.zip";
+// 芸術少女・わんぱく少女の 1P〜4P。上の RAW に福笑いで決めた眉・目・口を partpaste.py で貼り（眉の長さも反映）、色替えした。
+// 芸術: 生成した紫（エプロンのひも・縁・鞄・スカートの裾・靴）を 4P にし、1P 赤・2P 緑・3P 青に recolor.py で塗り替えた
+//       （肩から上は明るさ 0.5 以上だけ塗る。暗い紫の髪の毛先が塗り替わったため）。髪留めは紫のまま。
+// わんぱく: 生成したカーキのベストを 2P にし、1P 赤・3P 青・4P 紫。ベスト・鞄・短パン・髪が同じ色相なので、
+//       ベストの面を形で選んだ型（mask_wan_vest）を使い、鞄のまわりは明るさ 0.38 以上だけ塗った。肩ひもはベストと同じ色に変わる。
+// 芸術 1P〜4P は頭の重みを付け直した（2026年9月23日、headweight.py 0.69 0.735）。後頭部の髪が頭 0.5・胸 0.3 に分かれていて、
+//   待機で頭が縮んだり膨らんだりして見えた。前の版: 1P b5318f48… 2P 300886c9… 3P 3abd99ee… 4P 1cd51257…
+const GEIJUTSU_1P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/4aa7a7d9-b8db-4a54-bfae-0fc33b7ef556.zip";
+const GEIJUTSU_2P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/05ab06b8-6ed0-4ab0-a7f3-840478ef6b29.zip";
+const GEIJUTSU_3P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/ef9c5dc9-14ba-433e-bab1-018216cb8b53.zip";
+const GEIJUTSU_4P = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/f787364f-8293-40be-ab20-8aaf73ce578a.zip";
+// わんぱく 1P・3P・4P は塗り直した（2026年9月23日）。襟（頭の骨で動く）と裾が塗れておらず、紐と鞄の裏に色が乗っていた。
+//   型を vestmask2（形＋画素の色。紐・鞄・短パンを外す）に替えた。前の版: 1P de2dbb3b… 3P d168db84… 4P b1f40208…
+const WANPAKU_1P  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/976b051e-8997-4b6a-aab8-8750ab2230fa.zip";
+const WANPAKU_2P  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/6fb18e8b-e55a-4614-a763-2259d101e3e7.zip";
+const WANPAKU_3P  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/2d1bd292-435f-4809-be92-d34cefeaf083.zip";
+const WANPAKU_4P  = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/0b3b9ec0-03a8-464f-a3c1-62e77644ca26.zip";
+// 小学生編の試作（2026年9月27日）。元気少女の私服5番（赤いウインドブレーカー・紺のスコート）、三面図は約3.6頭身・T字で描いた。
+//   生成 → 三面図で貼り直し → 骨を戻しただけ（形の直し・顔の部品・色違いはまだ）。ファイルは map/elem/genki_e_a1.glb
+const GENKI_ELEM_A1 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/b18eeed6-898c-4f70-9a1f-bd29fc98bcf9.zip";
+// ↑1回目は三面図の顔が平たいアニメ絵で、生成した顔も平らで四角かった（「顔が平たい」「ちょっと四角い」）。
+//   幼稚園児の元気少女の顔を見本に、三面図の顔を立体の人形の顔（鼻・丸いほっぺ・まぶたの縁）に描き直して作り直した。ファイルは map/elem/genki_e2_a1.glb
+const GENKI_ELEM_A2 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/c5940ecc-3d0d-444a-bd1c-ab0b240487b1.zip";
+// ↑A2 は「無理くり彫った感じ・えぐれて見える・幼稚園時代より鼻が低い」と言われた。
+//   A3: facesmooth（z・0.7）→ nosebump（幼稚園児の元気少女の鼻を ×0.56 で写す）→ 目のまわりを最大 6mm 前へ（scratchpad の eyelift.py）。ファイルは map/elem/genki_e2_eye.glb
+const GENKI_ELEM_A3 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/9a4e7d04-2718-4a43-aa6e-5d19e9bb8688.zip";
+// ↑A3 は「無理から鼻を出したから髭のような線が出てる」「鼻の影が無いから正面から見ると鼻が無いように見える」と言われた。
+//   A4: facesmooth（n・σ0.006）で鼻まわりの面の向きをならして線を消し、nosetint で鼻の頭に桃色（0.92,0.60,0.52・半径1cm）。ファイルは map/elem/genki_e2_nt.glb
+const GENKI_ELEM_A4 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/facde1f0-9463-49af-8b39-be859d67e6a2.zip";
+// ↑A4 までの顔は、三面図の時点で「丸いほっぺを前に」と頼んだせいで顔の下半分が広がり、あごが四角かった（「そもそも三面図が間違ってないか？」）。
+//   A5: 三面図のあごを候補の絵と同じ細くとがった形に直して（三面図_8_あご細く）作り直した。生成して貼り直しただけ。ファイルは map/elem/genki_e3_a1.glb
+const GENKI_ELEM_A5 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/556e4cd6-5275-42ef-91d3-6f0a9b3e4d74.zip";
+// 「頭の縦幅を変えずに横幅を小さくできる？」→ A5 の頭を、あごを支点に横幅だけ 0.90 倍・0.85 倍にした見比べ用（縦と奥行きはそのまま）。
+//   scratchpad の headscale_xz.py（headscale.py の写しに奥行きの倍率を足した）: 倍率 f・chin・縦 1/f・奥行き 1/f。ファイルは map/elem/genki_e3_hx0.90.glb / hx0.85.glb
+const GENKI_ELEM_HX090 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/83d5b1d5-5269-492c-9c8b-97363568d405.zip";
+const GENKI_ELEM_HX085 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/137c2fb6-b23f-4a10-b73e-82da7c23305f.zip";
+// 頭の横幅 0.90 倍の版に、幼稚園児の元気少女の動き 7 本（Idle・Jump・Run・Skip・Walk_Adult・Walk_Child・Wave）を移した（2026-09-28）。
+//   生成で付いた大人の歩き（Casual_Walk）は足が交差し「子供がそんな歩き方しない」と言われた。動きの一覧（Meshy）の歩きも大人のものばかり。
+//   幼稚園児の素の姿勢はかがんでいるので、そのまま移すと中腰になる → 待機の最初のコマを立ち姿の基準にし、体の空間での向きの変化だけを移した。
+//   脚が長いぶん内側へ寄せる幅も大きく足が交差したので、太もも・すねは前後の振りだけ移す。scratchpad の apose_ref.py → animretarget_world.py。ファイルは map/elem/genki_e3_r6.glb
+const GENKI_ELEM_R6 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/39525713-8db7-4cc9-9f83-381b5a5140a1.zip";
+// ↑R6 は「右腕が折れてる・右腕とポニーテールが引っ付いて顔が引っ張られる・内股で足首が折れてる」と言われた。
+//   原因：T字で骨を入れたため、ポニーテールに右腕の重み（3〜5割）、顔に腕の重み（1〜2%）が入っていた。
+//   CW: 髪（色で判定＋まわり4つ）を頭の骨だけにし、頭の重みが4割以上の頂点から腕・肩の重みを外した（hairweight.py）→ 上腕だけ下ろして素の姿勢に焼いた（apose_ref.py）
+//       → 待機は幼稚園児の Idle を体の空間の変化で移した（animretarget_world.py）→ 歩き（Walk_Child）は計算で作った（childwalk.py：足は肩幅で前後、ひざは前、腕は体の横で前後）。
+//   動きは Idle と Walk_Child の2本だけ。ファイルは map/elem/genki_e3_cw.glb
+const GENKI_ELEM_CW = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/5eea33bc-6a24-4805-9b08-5446cd41c872.zip";
+// ↑CW は「左右の腕の開く角度が違う。幼稚園児の時にあった過ちを繰り返してないか？」と言われた。
+//   幼稚園児の待機の最初のコマが左右で違い（上腕13度・太もも18度）、それを写していた。生成のT字は左右対称（上腕0.4度）。
+//   CI: 上腕は手本の左右の平均、右は左の鏡写し（apose_sym.py）。待機も左右対称に計算で作った（childidle.py：息と肩・腕・頭のわずかな揺れ、腕は体へ12度）。
+//   待機・歩きとも腕の左右差 0度（足首 1.2度は生成の骨の元の差）。ファイルは map/elem/genki_e3_ci.glb
+const GENKI_ELEM_CI = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/512ac7ca-51c8-417d-b1b9-c6bd25715ad3.zip";   // 待機を先頭に並べ直した版（前の版: df148cf9…）
+// ↑CI は「待機・歩き共に腕の角度+10度くらい必要。待機、腕を後ろにしてるのが変。歩き、足がロボットダンスの歩きみたい」と言われた。
+//   CW2: 上腕の素の向きの前後の傾きを 0（手本の平均は後ろへ16度）、腕を体へ寄せる角度を 待機 12→2度・歩き 20→10度。
+//   歩きは childwalk2.py：腰を高く（着いた脚がほぼ伸びる）、腰の一番高いのを片足立ちの真ん中に、かかとから着いてつま先で蹴る、28コマ。ファイルは map/elem/genki_e3_cw2.glb
+const GENKI_ELEM_CW2 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/75cdaf1b-bacf-4723-80e2-bcd1a7c97da2.zip";
+// ↑CW2 は「惜しい、歩き、左右の手と足が同じタイミングで出てる」と言われた（腕の振りが脚から4分の1周期ずれ、同じ側の足と手の前後の相関 0.00）。
+//   CW3: 腕は同じ側の脚と逆に振る（足が前＝かかとが着く時に同じ側の腕は一番後ろ）。相関 -0.93。ファイルは map/elem/genki_e3_cw3.glb
+const GENKI_ELEM_CW3 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/6f3b843d-a80f-4d4f-a31b-0425dbb72fb2.zip";
+// 走り（Run）とスキップ（Skip）を足した（childgait.py。どちらも計算で作った、左右対称・同じ側の手足は逆）。
+//   「数本髪の毛が引っ張られて動いてるのがある。それは切り取って」→ 全クリップの全コマで 1.5 倍を超えて伸びる辺に触れる髪の面（32枚、hairtrim.py）と、
+//   ポニーテールの下に細く垂れた毛（高さ 0.85〜0.93・右側、80枚、thinhair.py）を切り取った。首より上で伸びる辺 0 本。
+//   クリップは Idle・Walk_Child・Run・Skip。ファイルは map/elem/genki_e3_hair.glb
+const GENKI_ELEM_HAIR = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/d4f74cab-89a4-4d84-b33c-b09be84be374.zip";
+// ↑HAIR は「全体的に両腕が曲がってるのが気になる。RUNは違うのが入ってないか？スキップもロボットダンスみたい」と言われた。
+//   ・基準の姿勢で前腕が上腕から約10度曲がっていた → まっすぐに（apose_sym.py）。歩きのひじ 12→3度、走り 80→55度
+//   ・走りは 1秒24コマで書き出すのに30コマのつもりで作り、2歩0.79秒と遅かった → 12コマ（0.5秒）
+//   ・浮いた足の前後を始めと終わりで止めていて（ease）カクッと止まった → 蹴った速さのまま離れて着く（エルミート補間）。スキップは腰の上下もなめらかに
+//   V2: ひじの曲がり 待機0・歩き3〜9・走り51〜57・スキップ19〜36度。ファイルは map/elem/genki_e3_v2.glb
+const GENKI_ELEM_V2 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/da104e81-39e2-4f47-909c-c279ffd98bcd.zip";
+// ↑V2 は「走り、幼稚園児のものと明らかに違う。歩きを速めてるだけ。スキップもおかしい」「今の頭身だと中学生くらい。足だけを10cm縮めて」
+//   「右腕に引っ張られている髪の毛がまだ1本ある」と言われた。真横から並べて測ると、手作りの走りは前傾4度（幼稚園児 56〜59度）・腕の振り
+//   −41〜+21度（同 −115〜+30度）、スキップは0.92秒（同 1.42秒）・腕45度（同 ±90度）と、どれもずっと小さかった。
+//   V4: ・脚だけ10cm縮めた（足首の上〜股関節を 0.787 倍、靴はそのまま、胴から上は形を変えず下げる。legshort.py）。身長 1.20m
+//       ・走り・スキップは幼稚園児の動きを骨の向きで写した（kingait2.py）。左右は平均して対称、脚の左右の開きは自分のまま、
+//         上体の傾きは腰〜首の角度を手本に合わせ、靴底の高さは手本×脚の長さ比。走り 12コマ（0.5秒）、スキップ 34コマ（1.42秒）
+//       ・歩きは歩幅と足の上がりを脚の長さに合わせて 0.8 倍。待機・歩きは前と同じ作り方
+//       ・ポニーテールの先から右肩へ伸びた毛（右の前腕の重み 0.65、三角1枚）を消した。袖の頭の重みを外し、首まわりとスコートの重みをならした（wfix.py）
+//   ファイルは map/elem/genki_e3_v4.glb
+const GENKI_ELEM_V4 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/03a7d30b-bfa2-45ed-b58a-1c2dfa390242.zip";
+// ↑V4 は「凄くよくなった！頭身もこれでいこう！ただ、スキップと走り、手首が折れてるのが気になる」と言われた。
+//   このモデルの手の骨は前腕から55度ずれて付いていて、手本の手の向きに合わせると手首が約40度折れていた。
+//   V5: 手は写さず前腕にまっすぐ付けたまま（手首の角度は走り・スキップとも待機と同じ 左55・右53度）。ファイルは map/elem/genki_e3_v5.glb
+const GENKI_ELEM_V5 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/788ce2af-2dc6-4851-8bd4-2c9cff487780.zip";
+// ↑V5 は「塗りのマスクをまた作って塗り直して。髪の毛（左側頭部に黄色）やリボンに髪の色が入ってる」と言われた。
+//   V6: リボンの面を形で決め（黄色の面から、折れ目20度未満でつながる面へ広げる）、マスク map/chars/masks/mask_genki_elem_ribbon.png を作った。
+//   リボンの中の茶色 → リボンの黄色、左側頭部の房の黄色 → 髪の茶色（色合いは手本に固定し、明るさの差を6割で残す。blender/ribbonfix.py）。
+//   形・骨・動きは V5 のまま。ファイルは map/elem/genki_e3_v6.glb（絵は genki_e3_v6_tex.png）
+const GENKI_ELEM_V6 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/134d0ad9-e333-4a3e-968c-fa7bab714c82.zip";
+// ↑V6 は「リボンのシワに入った髪色を影に出来れば良いんだけど」と言われた。シワの面は折れ目20度で止まってリボンから外れ、茶色のままだった。
+//   V7: リボンの面を6輪広げてから同じだけ縮め（穴ふさぎ）、増えた面（465面）をシワとして、リボンの黄色の影の色（色相−4度・明るさ0.70倍）で塗った。
+//   マスクにシワ（こげ茶 128,64,0）を足した。ファイルは map/elem/genki_e3_v7.glb（絵は genki_e3_v7_tex.png）
+const GENKI_ELEM_V7 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/bdc4cf89-ea78-4929-898c-4c41d7d67355.zip";
+// お嬢様（小学生編）1P（2026-09-28、キャラ作成の手順.md 20章の手順で作った2人目）。私服候補5点から3番（白いボレロ＋小花柄のワンピース）。
+//   三面図は元気少女の三面図を土台に描き替え（体の各部の高さがそろう）→ 生成 → 貼り直し → 頭の横幅0.90倍。
+//   長い髪は longhair.py（首より上は頭、首より下は背骨・腰、腕の重みを外す）。腰・股関節・背骨の骨が約10cm前にずれていたので jointfix.py で直した。
+//   靴に反対側の足の重みが混じっていた → legside.py。走り・スキップの足先は写さない。左耳の前の髪の紺の筋は haircolorfix.py で塗り直した。
+//   身長1.20m、首 0.815 / 身長 1.200 = 0.679 → scaleAdj 1.86。ファイルは map/elem/ojou_e_v1.glb
+const OJOU_ELEM_V1 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/3a9d208b-324a-46d3-8a5c-ab6538fcb9aa.zip";
+// ↑V1 は「輪郭が元気少女と違う。動くとスカートが必要以上に跳ね上がってる。肩の服が髪に引っ付いてる」
+//   「三面図だと顔同じに見える、0.9倍を二回行ってないか？」と言われた。
+//   V2: ・頭の横幅 0.90 倍をやめた（お嬢様は生成の時点で元気少女の直したあとと同じ幅だった。かけると1割細くなった）
+//       ・longhair.py の「両腕の重み」「頭の重みが少しでも」の判定を暗い色（明るさ0.6未満）だけにした（白いボレロの肩が髪にされていた）
+//       ・skirtfix.py：スカートの重みを場所だけで決めた（裾で前0.8・後ろ0.25がもも、残りは腰）。脚の肌とは5〜9cmでなめらかにつなぐ
+//       ・stretchcut.py：スカートの内側と太ももをつなぐ面のうち、動きで2.5倍を超えて伸びる面（580枚）を消した（裾から針のように伸びた）
+//   ファイルは map/elem/ojou_e_v2_final.glb
+const OJOU_ELEM_V2 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/dadbcda1-27d6-4cff-bb1c-b27169849cd3.zip";
+// ↑V2 と元気少女の V7 は、読み込み直した動きが 1 コマ目から始まっていて、書き出すと 0 コマ目が余分に入り、ループのたびに 1 コマ止まっていた
+//   （走り 12 コマが 0.54 秒・待機 3.04 秒・歩き 1.21 秒。本当は 0.50・3.00・1.17 秒）。animzero.py で 0 コマ目からにそろえた版：
+const OJOU_ELEM_V2Z = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/207c6da9-eb1e-4426-96f0-63232fc02742.zip";   // map/elem/ojou_e_v2z.glb
+// ↑V2Z は「スカートが破れ、足の絵が無くなって透けている。肩と髪がまだ引っ付いてる」（ユーザー 2026-09-28）。V3：
+//   ・面を消す stretchcut.py はやめた（太ももの肌の面まで消えて穴が開いた）
+//   ・skirtfix.py：直す高さを裾のすぐ下（0.35m）から上にし、脚の骨から 7.5cm 以内（脚の肌）は触らない。
+//     縫い目の頂点が暗い色を拾って直しから漏れ、ももの重み 1.0 のまま裾を引っ張っていた（53 頂点）のも直した
+//   ・hairjoin.py：髪と服の境目の重みを 3 輪でなだらかにつなぐ（肩で 2cm 以上伸びる辺 732 → 53 本、最大 8.4 → 3.2cm）
+//   ・sliverpaint.py：肩の上の髪の中に入り込んだ白い布の切れ端（28 面）を髪の色に、右袖の前の髪の色の 3 面を服の白に塗った
+const OJOU_ELEM_V3 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/8abdf5d2-5f6c-4e0a-8257-b2c3c40650ea.zip";   // map/elem/ojou_e_v3c.glb
+// ↑V3 は「太ももの裏地の筋も消して。肩にまだ髪が付いてる。スカートの跳ね上がり方が角ばって金属っぽい。スカートが膝についてても構わない」
+//   「右腕、穴開いてる？腕から尖ったのが出てる」（ユーザー 2026-09-28）。V7：
+//   ・legpaint.py：ひざ下の内側・スカートの中の太ももに入った白（291 面）を肌色に
+//   ・skirtfix.py：裾の前 0.5・後ろ 0.2、左右の切り替え 20cm・高さ 24cm でなめらかに（ひざに当たってもよい）
+//   ・shouldercap.py：肩の上面を腕でなく鎖骨の骨で動かす
+//   ・hairsplit.py：首より下で髪と服のつなぎ目の頂点を 2 つに分けて切り離す（面は消さない）。肩の上の白い切れ端は髪の側に入れて髪の色に。
+//     右袖の前の頂点が前髪の房の先に引き寄せられてできたへこみを、まわりに合わせて直した
+//   ・前の V3 の黒いギザギザは、切れ端を髪の色に塗った時に袖の面まで塗ったもの（今回は切れ端の面の中だけ塗る）
+const OJOU_ELEM_V7 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/07c912ff-bc83-409d-aa64-bb311661761e.zip";   // map/elem/ojou_e_v7.glb
+// ↑V7 は裾の前 0.5 で、ももを上げるとひざがスカートの前を突き抜け、スカートに肌色のしみが出た。V8 は前 0.7（ほかは V7 と同じ）
+const OJOU_ELEM_V8 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/2599aec6-202c-4a21-93fe-542e65b7d498.zip";   // map/elem/ojou_e_v8.glb
+// ↑V8 は「スキップでスカートを突き破るのは違う！」「肩と髪がくっ付いてるのが結構残ってる」（ユーザー 2026-09-28）。
+//   ・スカート専用の骨（前の左右 SkirtFL・SkirtFR、後ろ SkirtB）を足し（skirtbones.py）、動きごとに回転を焼き込んだ（skirtdrive.py）。
+//     前の骨は自分の側のももが前へ上がった角度に合わせ、上がっていなければ真下に垂れる。後ろは後ろへ振ったももに合わせる。
+//     重みの混ぜ合わせ（skirtfix.py）では、前を下げると突き抜け、上げると角ばった
+//   ・hairsplit.py：切り離す高さを首 +8cm まで広げ、服の反対側の腕の重み・髪の腕の重みを外した。肩の毛先の束は hairrelax.py でならした
+//   V11 は前の左右の切り替え 12cm、V12 は 18cm
+const OJOU_ELEM_V11 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/fb96784e-8b7d-4b89-ac37-a1b6af1e8fd2.zip";   // map/elem/ojou_e_v11.glb
+const OJOU_ELEM_V12 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/acf7b05c-331d-4ba4-b136-5e8bbf54afb3.zip";   // map/elem/ojou_e_v12.glb
+// ↑V11 はスカートの前後の切り替えが 9cm で、前が上がり後ろが垂れた時に横で布が板のように折れて立った。V13 は前後 18cm・左右 15cm
+const OJOU_ELEM_V13 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/a499941c-3ace-4044-89b6-aaf2608032a8.zip";   // map/elem/ojou_e_v13.glb
+// ↑V15 は V13 の肩の上で、髪の側に入った白い面（2 面）を髪の色に塗った版
+const OJOU_ELEM_V15 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/de98190d-951e-41e8-99c5-1a9608a865ab.zip";   // map/elem/ojou_e_v15.glb
+// ↑V15 はツールで肩のうしろに細い灰色の毛先（元の白い切れ端が針の形で残った）が見えた。V16 は hairrelax.py --collapse で針を根元の方へ横に縮めた版
+const OJOU_ELEM_V16 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/1475a7e3-e1e8-4e9d-91c9-a3cfe73c099f.zip";   // map/elem/ojou_e_v16.glb
+// ↑V16 は「右腕穴開いてるの直ってない。肩に付いた髪を取り除くためとはいえ、削った感じが出ている。必要以上にスカート上がり過ぎ」
+//   「髪の毛の内側に肌色が入っている」（ユーザー 2026-09-28）。V17（V13 から作り直し。V16 の髪を横に縮める直しは使わない）：
+//   ・skirtdrive.py：素の姿勢で裾とももの前の面の角度の差（前 33 度・後ろ 35 度）を測り、ももが裾の 2cm 手前まで来てから回す
+//   ・unflip.py：右袖の前の裏返った面（となりの面と折り重なって、面の裏が暗く見えて穴に見えた）を、頂点を 3mm 動かして直した
+//   ・hairskinpaint.py：髪の房の内側・前髪の毛先の肌色・白（126 面）を髪の色に
+const OJOU_ELEM_V17 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/2cda868a-1bf6-4758-b79a-a0c0a16186f7.zip";   // map/elem/ojou_e_v17.glb
+// ↑V17 は「顎裏に穴」「右腕の穴も塞がってない」「髪の肌色も直ってない」「蜘蛛の糸のような白い線が肩に」（ユーザー 2026-09-28）。V18：
+//   ・hairsplit.py：重みを同じ位置の頂点（絵の切れ目）ごとにまとめて決める（片方だけ頭の重みが外れて顎の下の継ぎ目が開いていた）。
+//     首より上の真ん中寄り（顎の下）は服の側でも触らない
+//   ・fillcrack.py：右袖の前の、生成の時からの細い隙間 2 つに面を足して塞いだ
+//   ・hairskinpaint.py：顎の下（下向きの面）を外し、髪の島の面の中の明るい画素だけを塗る（前髪の毛先の白い筋）。マスクを見てから塗った
+//   ・hairrelax.py --collapse：肩の針の面の頂点だけを根元の方へ縮めた（まわりの髪は動かさない）
+const OJOU_ELEM_V18 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/6909a2f0-b7cc-4008-a3e3-fcc66d40b8e2.zip";   // map/elem/ojou_e_v18.glb
+// ↑V18 は肩の針を 3 割の長さにしたので、ツールで正面寄りから見た右肩に細い白い線が残った。V19 は針を最後まで縮めた（長さ 0。範囲は同じ 64 面）。
+//   頭で動く白い細長い面（髪の側に残った切れ端 2 面）も針に入れた
+const OJOU_ELEM_V19 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/e4557391-42b2-48cd-9ea1-56922c7d2d3e.zip";   // map/elem/ojou_e_v19.glb
+// ↑V19 は右肩を横・斜めうしろから見ると、髪の中に白いかけらが散って見えた。V20 は、髪と服を切り離した所で服の小さな面が
+//   星形にくしゃっと固まって飛び出していた所（12 面）をまわりの表面になじませ（knotflat.py）、肩の上に横に寝て櫛の歯のように
+//   並んでいた髪の板（20 面）を首の付け根へ縮め（hairrelax.py --collapse --fan）、待機で横に引き伸ばされていた服の細い面（3 面）を
+//   位置も重みも 1 点に潰した（knotflat.py --collapse）
+const OJOU_ELEM_V20 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/30e4fe68-064a-4662-8c4a-8e7d16063548.zip";   // map/elem/ojou_e_v20.glb
+// ↑V20 は目の横の房の内側に肌色が残っていた（「髪の毛についた肌色…マスクできないのかな？」）。正体は 2 つ：
+//   (1) Meshy が作ったとがった耳（ほおの横、左右）が房のすき間からのぞいていた → 耳の絵の島をまるごと髪の色に（islandpaint.py）
+//   (2) 絵の島と島のすき間（未使用の画素）に残っていた肌色が、描く時のぼかしで房のふちににじんでいた → 髪の島のふちの外側に
+//       髪の色を広げるパディング（hairpad.py）。面ごとのマスクではそもそも対象に入らない所だった。絵だけの直しで形は V20 と同じ
+const OJOU_ELEM_V21 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/725422cb-706f-430d-b041-259a48457f14.zip";   // map/elem/ojou_e_v21.glb
+// ↑V22 は V21 に、右肩のうしろの房の欠け（右真横から見ると服が白く見えた所）へ髪の色の縦長のつぎ当て 8 面を置いた（hairpatch.py）。絵は V21 と同じ
+const OJOU_ELEM_V22 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/db0a86d1-fed4-4de0-8b69-c67a8657ebf0.zip";   // map/elem/ojou_e_v22.glb
+// ↑V22 でも、目の横の房のふちと、前髪のすき間（右前から見る）に肌色〜白の筋が残っていた。V23 は、
+//   (1) 房の薄い板・髪の小さな島・肌の前に浮いた面のうち、絵だけ明るい 240 面に、となりの髪の面の絵の位置（UV）を貼った（orphanfix.py）
+//   (2) 前髪の生えぎわの下の額の帯（白〜灰色の地に髪の筋が描かれていた）の画素を、目と眉間を外して髪の色にした（greypaint.py）。形は V22 と同じ
+//   → (2) は額を髪の色で消しただけで、正面で目のすぐ上がぎざぎざに黒くなった（「額を消しましたってオチじゃないだろうな？」）。没。額の帯は肌の色に塗り直すのが正しい
+const OJOU_ELEM_V23 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/016859dc-aa73-41ea-bf9e-575be2d69c7d.zip";   // map/elem/ojou_e_v23.glb（没）
+// ↑V24 は V23 の (1) はそのまま、(2) の額の帯の白〜灰色の画素を、髪の色でなく額の肌の色に塗り直した（greypaint.py --skin。髪の面は塗らない）
+const OJOU_ELEM_V24 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/85980c28-77e8-490b-869f-04776859684f.zip";   // map/elem/ojou_e_v24.glb（没：額の上の面も黒くなった）
+// ↑V25 は「肌色が付いた髪を黒く塗れないのか」への答え。髪の房の面だけを直した（額・顔・目には触らない）。V22 に、
+//   房の薄い板（裏 6mm 以内に反対向きの面がある）と髪の中の小さな島のうち、肌色の絵が貼られた 171 面へ、となりの髪の面の UV を貼った（orphanfix.py --sheet 0.006）
+const OJOU_ELEM_V25 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/b06d4954-b1fa-4f3b-a27a-5c30dc96add9.zip";   // map/elem/ojou_e_v25.glb
+const OJOU_ELEM_V26 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/4d945854-2294-4108-90dc-fd6951a89c7a.zip";   // map/elem/ojou_e_v26.glb（V25 の耳を肌色に戻した。earback.py）
+const OJOU_ELEM_V27 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/1e5388ba-2b59-4399-9e1e-1e7a2a6ad215.zip";   // map/elem/ojou_e_v27.glb（V26 の前髪の毛先の肌色のかけら 89 面を、ユーザーが面えらび（facepick.html）で選んで髪の色にした。facepickapply.py）
+const GENKI_ELEM_V8 = "https://d2ol7oe51mr4n9.cloudfront.net/user_3GwpWtG5fM78b93azm2hwNWzjTa/3e9ef031-8f64-455b-8aa7-ceea4ddc7a79.zip";   // map/elem/genki_e3_v8.glb（V7 を 0 コマ目からにそろえただけ）
+// 今のキャラの体（2頭身ちょっと）は「幼稚園児」の大きさとする（ユーザーの指示 2026-09-27）。一覧の名前を「（小学生）」から「（幼稚園児）」に変えた。
+// 下や上のコメントに残っている「（小学生）」は、作った時の記録なのでそのまま。小学生編は 3〜4 頭身の体を別に用意する
+const MODELS = [
+  { key:"genki1p", char:"元気少女（幼稚園児）", p:"1P", url: GENKI_1P_J,
+    label:"元気少女（幼稚園児）1P：赤シャツ・青パンツ・水色ランドセル（Unityに入っている版）" },
+  { key:"genki2p", char:"元気少女（幼稚園児）", p:"2P", url: GENKI_2P_J,
+    label:"元気少女（幼稚園児）2P：緑シャツ・紫パンツ・桃ランドセル" },
+  { key:"genki3p", char:"元気少女（幼稚園児）", p:"3P", url: GENKI_3P_J,
+    label:"元気少女（幼稚園児）3P：青シャツ・緑パンツ・水色ランドセル" },
+  { key:"genki4p", char:"元気少女（幼稚園児）", p:"4P", url: GENKI_4P_J,
+    label:"元気少女（幼稚園児）4P：紫シャツ・青緑パンツ・橙ランドセル" },
+  { key:"v55face_shusai", char:"元気少女（幼稚園児）", p:"秀才", row:2, url: SHUSAI_V55FACE,
+    label:"秀才少女（幼稚園児）に v55 の顔を写した試し" },
+  { key:"ojou_new_noface", char:"元気少女（幼稚園児）", p:"外す", row:2, url: OJOU_NEW_NOFACE_NOSE,
+    label:"新お嬢様から目と口を外した版（鼻の点あり・貼る前の肌の確認用）" },
+  // 位置を決めて焼き込み済みなので一覧から外した: { key:"fukuwarai", char:"元気少女（小学生）", p:"福笑い", row:2, url: OJOU_NEW_NOFACE_NOSE,
+  //    label:"福笑い：新お嬢様（鼻の点あり）に眉・目・口をスライダーで置く" },
+  // 新お嬢様を「お嬢様（小学生）」として元気少女の下に置き、1P〜4P を並べる。
+  // 2P〜4P は tintcloth.py でカーディガンとスカートの白に色を乗せた版（リボン・スカートの線・靴は紺のまま）。
+  { key:"ojou1p", char:"お嬢様（幼稚園児）", p:"1P", url: OJOU_1P_J,
+    label:"お嬢様（幼稚園児）1P：白いカーディガンとスカート・紺リボン（v55 の体から生成し、v55 の顔を写した版）" },
+  { key:"ojou2p", char:"お嬢様（幼稚園児）", p:"2P", url: OJOU_2P_J,
+    label:"お嬢様（幼稚園児）2P：淡い緑のカーディガンとスカート" },
+  { key:"ojou3p", char:"お嬢様（幼稚園児）", p:"3P", url: OJOU_3P_J,
+    label:"お嬢様（幼稚園児）3P：淡い水色のカーディガンとスカート" },
+  { key:"ojou4p", char:"お嬢様（幼稚園児）", p:"4P", url: OJOU_4P_J,
+    label:"お嬢様（幼稚園児）4P：淡い紫のカーディガンとスカート" },
+  // 作り直す前の版: { key:"shusai1p", char:"秀才少女（小学生）", p:"1P", url: SHUSAI, label:"秀才少女（小学生）1P：赤メガネ・黒ボブ・赤チェックのスカート" }
+  { key:"shusai1p", char:"秀才少女（幼稚園児）", p:"1P", url: SHUSAI_1P_J,
+    label:"秀才少女（幼稚園児）1P：黒ボブ・灰色ベスト・赤チェックのスカート（v55 の顔を写した作り直し・メガネはまだ）" },
+  { key:"shusai2p", char:"秀才少女（幼稚園児）", p:"2P", url: SHUSAI_2P_J,
+    label:"秀才少女（幼稚園児）2P：緑のベスト・緑チェックのスカート・緑のランドセル" },
+  { key:"shusai3p", char:"秀才少女（幼稚園児）", p:"3P", url: SHUSAI_3P_J,
+    label:"秀才少女（幼稚園児）3P：青のベスト・青チェックのスカート・青のランドセル" },
+  { key:"shusai4p", char:"秀才少女（幼稚園児）", p:"4P", url: SHUSAI_4P_J,
+    label:"秀才少女（幼稚園児）4P：紫のベスト・紫チェックのスカート・紫のランドセル" },
+  // 位置を決めて焼き込み済みなので一覧から外した: { key:"fukuwarai_shusai", char:"秀才少女（小学生）", p:"福笑い", row:2, url: SHUSAI_NEW_NOFACE,
+  //    label:"福笑い：秀才少女（鼻の点あり）に眉・目・口をスライダーで置く" },
+  { key:"gyaru1p", char:"ギャル少女（幼稚園児）", p:"1P", url: GYARU_1P_J, scaleAdj: 1.04,
+    label:"ギャル少女（幼稚園児）1P：金髪ツインテール・ピンクのパーカー・デニムのスカート（v55 の顔を写した版）" },
+  { key:"gyaru2p", char:"ギャル少女（幼稚園児）", p:"2P", url: GYARU_2P_J, scaleAdj: 1.04,
+    label:"ギャル少女（幼稚園児）2P：淡い緑のパーカーと髪のゴム" },
+  { key:"gyaru3p", char:"ギャル少女（幼稚園児）", p:"3P", url: GYARU_3P_J, scaleAdj: 1.04,
+    label:"ギャル少女（幼稚園児）3P：淡い水色のパーカーと髪のゴム" },
+  { key:"gyaru4p", char:"ギャル少女（幼稚園児）", p:"4P", url: GYARU_4P_J, scaleAdj: 1.04,
+    label:"ギャル少女（幼稚園児）4P：淡い紫のパーカーと髪のゴム" },
+  { key:"fukuwarai_gyaru", char:"ギャル少女（幼稚園児）", p:"福笑い", row:2, url: GYARU_NEW_NOFACE, scaleAdj: 1.04,
+    label:"福笑い：ギャル少女（鼻の点あり）に眉・目・口をスライダーで置く" },
+  // 顔の部品を貼って 1P〜4P にしたので、のっぺらぼうの「形と動き」は一覧から外した（URL の定数 GEIJUTSU_RAW / WANPAKU_RAW は福笑いで使っている）
+  // { key:"geijutsu_raw", char:"芸術少女（制作中）", p:"形と動き", url: GEIJUTSU_RAW, scaleAdj: 0.880,
+  //   label:"芸術少女（制作中）：紫のくせ毛・絵の具のエプロン・紫のスカート。動き6本・頭の大きさ・鼻（形と点）まで済み（表示×0.880。顔の輪郭を元気少女に、体をギャル少女に合わせた）。目口はまだ" },
+  // { key:"wanpaku_raw", char:"わんぱく少女（制作中）", p:"形と動き", url: WANPAKU_RAW, scaleAdj: 1.02,
+  //   label:"わんぱく少女（制作中）：茶のボサボサ頭・カーキのベスト・ベージュの短パン（帽子は習い事で邪魔になるので外した）。動き6本・頭の大きさと向き・鼻（形と点）まで済み。目口はまだ・髪はまだ暗い" },
+  { key:"geijutsu1p", char:"芸術少女（幼稚園児）", p:"1P", url: GEIJUTSU_1P, scaleAdj: 0.880,
+    label:"芸術少女（幼稚園児）1P：赤のエプロンのひも・鞄・スカートの裾・靴（顔の部品を貼った版）" },
+  { key:"geijutsu2p", char:"芸術少女（幼稚園児）", p:"2P", url: GEIJUTSU_2P, scaleAdj: 0.880,
+    label:"芸術少女（幼稚園児）2P：緑のエプロンのひも・鞄・スカートの裾・靴" },
+  { key:"geijutsu3p", char:"芸術少女（幼稚園児）", p:"3P", url: GEIJUTSU_3P, scaleAdj: 0.880,
+    label:"芸術少女（幼稚園児）3P：青のエプロンのひも・鞄・スカートの裾・靴" },
+  { key:"geijutsu4p", char:"芸術少女（幼稚園児）", p:"4P", url: GEIJUTSU_4P, scaleAdj: 0.880,
+    label:"芸術少女（幼稚園児）4P：紫のエプロンのひも・鞄・スカートの裾・靴（生成したときの色）" },
+  { key:"fukuwarai_geijutsu", char:"芸術少女（幼稚園児）", p:"福笑い", row:2, url: GEIJUTSU_RAW, scaleAdj: 0.880,
+    label:"福笑い：芸術少女（のっぺらぼう）に眉・目・口をスライダーで置く" },
+  { key:"wanpaku1p", char:"わんぱく少女（幼稚園児）", p:"1P", url: WANPAKU_1P, scaleAdj: 1.02,
+    label:"わんぱく少女（幼稚園児）1P：赤のベスト（顔の部品を貼った版）" },
+  { key:"wanpaku2p", char:"わんぱく少女（幼稚園児）", p:"2P", url: WANPAKU_2P, scaleAdj: 1.02,
+    label:"わんぱく少女（幼稚園児）2P：カーキのベスト（生成したときの色）" },
+  { key:"wanpaku3p", char:"わんぱく少女（幼稚園児）", p:"3P", url: WANPAKU_3P, scaleAdj: 1.02,
+    label:"わんぱく少女（幼稚園児）3P：青のベスト" },
+  { key:"wanpaku4p", char:"わんぱく少女（幼稚園児）", p:"4P", url: WANPAKU_4P, scaleAdj: 1.02,
+    label:"わんぱく少女（幼稚園児）4P：紫のベスト" },
+  { key:"fukuwarai_wanpaku", char:"わんぱく少女（幼稚園児）", p:"福笑い", row:2, url: WANPAKU_RAW, scaleAdj: 1.02,
+    label:"福笑い：わんぱく少女（のっぺらぼう）に眉・目・口をスライダーで置く" },
+  // 背の高さは 130cm（ユーザーの指示）。地面の1マス=1m で、幼稚園児は首の高さの比 0.438 でそろえると 1.0（100cm）になる。
+  // このモデル（A5）は首 0.904 / 身長 1.300 = 0.696 なので、そのままだと 0.438/0.696 = 0.629。1.30 にするため ×2.06（A1 は ×2.07、A2〜A4 は ×2.05）
+  // 前の版（身長 1.30m）: { key:"genki_elem1p", char:"元気少女（小学生・試作）", p:"1P", url: GENKI_ELEM_V2, scaleAdj: 2.06, noFit: true,  // 頭の横幅 0.90 倍・重み直し・左右対称の待機と歩き（2026-09-28）
+  //   label:"元気少女（小学生・試作）1P：約3.6頭身・赤いウインドブレーカー・紺のスコート（頭の横幅0.90倍・髪と顔の重みを直し、左右をそろえた版。動きは待機・歩き・走り・スキップの4本）" },
+  // V4 は脚を10cm縮めて身長 1.20m。首 0.804 / 身長 1.200 = 0.670 → 0.438/0.670 = 0.654。1.20 にするため ×1.84
+  { key:"genki_elem1p", char:"元気少女（小学生・試作）", p:"1P", url: GENKI_ELEM_V8, scaleAdj: 1.84, noFit: true,  // 脚を10cm縮め・走りとスキップは幼稚園児の動きを写した・手首をまっすぐに・リボンと髪を塗り直し・リボンのシワを影に・動きを 0 コマ目からに（2026-09-28。前の版は GENKI_ELEM_V7）
+    label:"元気少女（小学生・試作）1P：赤いウインドブレーカー・紺のスコート（脚を10cm縮めて身長120cm。走り・スキップは幼稚園児の動きを写した版。動きは待機・歩き・走り・スキップの4本）" },
+  { key:"genki_elem_hx090", char:"元気少女（小学生・試作）", p:"頭の横幅0.90", row:2, url: GENKI_ELEM_HX090, scaleAdj: 2.06, noFit: true,
+    label:"元気少女（小学生・試作）：頭の横幅だけ 0.90 倍（縦と奥行きはそのまま）" },
+  { key:"genki_elem_hx085", char:"元気少女（小学生・試作）", p:"頭の横幅0.85", row:2, url: GENKI_ELEM_HX085, scaleAdj: 2.06, noFit: true,
+    label:"元気少女（小学生・試作）：頭の横幅だけ 0.85 倍（縦と奥行きはそのまま）" },
+  { key:"ojou_elem1p", char:"お嬢様（小学生・試作）", p:"1P", url: OJOU_ELEM_V27, scaleAdj: 1.86, noFit: true,  // 20章の手順で作った2人目（2026-09-28）。肌色の絵が貼られた髪の房の面だけを髪の色にした版（V25）の耳を肌色に戻し（V26）、前髪の毛先のかけらを選んで髪の色にした版（V23・V24 は額まで塗って没。肩口の髪の欠けは未解決。前の版は OJOU_ELEM_V26・V25・V22・V21・V20・V19・V18・V17・V16・V15・V13・V8・V7・V3・V2Z・V2・V1）
+    label:"お嬢様（小学生・試作）1P：白いボレロ・小花柄のワンピース・紺のリボン（身長120cm。動きは待機・歩き・走り・スキップの4本）" },
+  // 前のお嬢様（小学生）とお嬢様（中学生）は一覧から外した（URL の定数 OJOU_ES / OJOU は残してある）
+];
+
+const view = document.getElementById('view');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+
+let frustum = 1.6;
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+view.appendChild(renderer.domElement);
+
+function resize(){
+  const w = view.clientWidth, h = view.clientHeight, a = w/h;
+  cam.left=-frustum*a; cam.right=frustum*a; cam.top=frustum; cam.bottom=-frustum;
+  cam.updateProjectionMatrix();
+  // 第3引数を false にすると CSS サイズが更新されず、pixelRatio 倍に拡大表示される
+  renderer.setSize(w, h);
+}
+
+// 下からの光の色。青灰色（0xbcc4d0）にしていたら、下を向いた面……
+// とくに顎の下が青く染まり、青髭のように見えた。暖かみのある灰色にして直した。
+scene.add(new THREE.HemisphereLight(0xffffff, 0xe6ddd4, 2.2));
+const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(3,6,4); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.6); fill.position.set(-4,2,-3); scene.add(fill);
+
+const controls = new OrbitControls(cam, renderer.domElement);
+const grid = new THREE.GridHelper(10, 10, 0xa9b3c2, 0xdfe4ec); scene.add(grid);
+
+// 伏角30度・方位45度の正射影で、地面の正方形が画面上でちょうど2:1の菱形になる
+function setCam(elevDeg, azimDeg){
+  const e=THREE.MathUtils.degToRad(elevDeg), a=THREE.MathUtils.degToRad(azimDeg), R=20;
+  cam.position.set(R*Math.cos(e)*Math.sin(a), R*Math.sin(e), R*Math.cos(e)*Math.cos(a));
+  controls.update();
+}
+setCam(30,45);
+const camBtns = {camGame:[30,45], camFront:[0,0], camSide:[0,90], camTop:[89.9,0]};
+Object.keys(camBtns).forEach(id=>{
+  document.getElementById(id).onclick = ()=>{
+    Object.keys(camBtns).forEach(k=>document.getElementById(k).classList.toggle('on', k===id));
+    setCam(camBtns[id][0], camBtns[id][1]);
+  };
+});
+
+// ---- モデル読み込み（2体） ----
+const entries = {};
+let current = MODELS[0].key;
+let loaded = 0;
+
+// アニメが複数ある場合の切り替えボタン。全モデルで同じ番号のクリップに合わせる
+function buildClipButtons(){
+  const e = entries[current]; if (!e) return;
+  const box = document.getElementById('clipBtns');
+  box.innerHTML = "";
+  // 直立不動: 全キャラの骨を読み込み直後の姿勢（バインド姿勢）にそろえる。
+  // アニメを止めただけだと、止めたコマの姿勢がキャラごとに微妙に違い、元気少女との差を正しく比べられない
+  const sb=document.createElement('button');
+  sb.textContent="直立不動"; sb.classList.toggle('on', stillMode);
+  sb.onclick=()=>{ stillMode = true; buildClipButtons(); };
+  box.appendChild(sb);
+  if (!e.clips || e.clips.length<2) return;
+  e.clips.forEach((c,i)=>{
+    const b=document.createElement('button');
+    b.textContent=c.name; b.classList.toggle('on', !stillMode && i===e.clipIndex);
+    b.onclick=()=>selectClip(i);
+    box.appendChild(b);
+  });
+}
+let stillMode = false;
+function selectClip(i){
+  stillMode = false;
+  Object.values(entries).forEach(x=>{
+    if (!x.clips || i>=x.clips.length) return;
+    if (x.action) x.action.stop();
+    x.clipIndex=i;
+    x.action = x.mixer.clipAction(x.clips[i].clip);
+    x.action.play();
+    x.dur = x.clips[i].clip.duration;
+    x.animName = x.clips[i].name;
+  });
+  t = 0;
+  buildClipButtons();
+  apply();
+}
+
+function apply(){
+  const e = entries[current]; if (!e) return;
+  Object.keys(entries).forEach(k=>{
+    entries[k].root.visible = (k===current);
+    if (entries[k].skel) entries[k].skel.visible = (k===current) && document.getElementById('bone').checked;
+  });
+  document.getElementById('tag').textContent = MODELS.find(m=>m.key===current).label;
+  document.getElementById('iTri').textContent = e.tri.toLocaleString();
+  document.getElementById('iBone').textContent = e.bones + " 本";
+  document.getElementById('iAnim').textContent = e.animName + " / " + e.dur.toFixed(2) + "秒";
+  document.getElementById('iH').textContent = e.height.toFixed(2) + " m";
+  e.meshes.forEach(m=>{ m.material.wireframe = document.getElementById('wire').checked; });
+}
+
+MODELS.forEach(spec=>{
+  new GLTFLoader().load(spec.url, gltf=>{
+    const root = gltf.scene; scene.add(root); root.visible=false;
+    // 新旧でモデルの寸法が違うので、身長1.0に正規化してから比べる。
+    // そうしないと「大きい方が粗く見える」だけの差になってしまう。
+    // 身長は頂点そのものの箱から取る（dressup.html と同じ）。
+    // setFromObject はスキン付きメッシュだと骨の姿勢がまだ計算されていない時点で測るので、
+    // 腰の骨の向きの取り方によって箱の高さが狂う。作り直したお嬢様は 0.55 と測られ、1.8倍に拡大されて宙に浮いた。
+    // 頂点の座標はメートルのままなので、目印の球（Icosphere）を除いたメッシュの箱で合わせる。
+    const gbox = new THREE.Box3();
+    root.traverse(o=>{ if (o.isMesh && !/^Icosphere/.test(o.name)){ o.geometry.computeBoundingBox(); gbox.union(o.geometry.boundingBox); } });
+    const h0 = gbox.max.y - gbox.min.y;
+    // 大きさの基準は、髪のてっぺんではなく首の関節の高さ。髪のてっぺんで合わせると、元気少女はポニーテールとリボンが
+    // 頭の上へ高く出ているぶん全体が小さくなり、頭の上が平らなボブの秀才少女が一回り（約9%）大きく見えた。
+    // あごの高さで比べると、目の間隔は 0.302 と 0.303 で同じ体つきだった。
+    // 首の関節の高さ（足元から）を、元気少女 v55 の比（0.551 / 1.258 = 0.438）にそろえる。首の骨が無いモデルは今までどおり身長で合わせる
+    const NECK_RATIO = 0.438;
+    let neckY = null;
+    // 首の高さは、メッシュの頂点と同じ座標で測れるバインド行列（boneInverses の逆行列）から取る。
+    // 骨の今の位置で測ると、読み込み直後の骨の姿勢がバインド時と違うモデル（秀才少女）で 1.5cm ずれた
+    root.traverse(o=>{
+      if (!o.isSkinnedMesh || neckY !== null || /^Icosphere/.test(o.name)) return;
+      const i = o.skeleton.bones.findIndex(b=>b.name === 'neck');
+      if (i >= 0) neckY = o.skeleton.boneInverses[i].clone().invert().elements[13];
+    });
+    // scaleAdj: キャラごとの表示の倍率の手直し。ギャル少女は首から下が短く（三面図を加工したとき縦に縮めすぎた）、
+    // 首の高さでそろえると、あごが他のキャラより低く一回り小さく見えたので、表示だけ大きくする
+    const k = ((neckY !== null && neckY - gbox.min.y > 0.1) ? NECK_RATIO / (neckY - gbox.min.y) : 1.0 / h0) * (spec.scaleAdj || 1);
+    root.scale.setScalar(k);
+    root.updateMatrixWorld(true);
+    const h = h0 * k;
+    root.position.y -= gbox.min.y * k;
+
+    let tri=0, bones=0, skel=null, hips=null; const meshes=[]; const boneMap={}; const restQ={}; const restP={};
+    root.traverse(o=>{
+      if (o.isBone){
+        boneMap[o.name] = o;
+        // 読み込み直後はバインド姿勢。動きの増減はここからの差を拡大縮小する
+        restQ[o.name] = o.quaternion.clone();
+        restP[o.name] = o.position.clone();
+        if (!hips && /hips|pelvis|root/i.test(o.name)) hips = o;
+      }
+      if (o.isMesh){
+        meshes.push(o);
+        const g=o.geometry;
+        tri += (g.index ? g.index.count : g.attributes.position.count)/3;
+        o.material.side = THREE.DoubleSide;
+      }
+      if (o.isSkinnedMesh && !skel){
+        bones = o.skeleton.bones.length;
+        skel = new THREE.SkeletonHelper(root); skel.visible=false; scene.add(skel);
+      }
+    });
+
+    let mixer=null, action=null, dur=0, animName="なし";
+    const clips = gltf.animations.map(c=>({
+      clip:c, name:c.name.replace(/^Armature\|/,'').replace(/\|baselayer$/,'')
+    }));
+    if (clips.length){
+      mixer = new THREE.AnimationMixer(root);
+      dur = clips[0].clip.duration;
+      animName = clips[0].name;
+      action = mixer.clipAction(clips[0].clip); action.play();
+    }
+    // 立ち位置の基準。腰の骨を原点へ引き戻すだけだと、腰の骨が体のどこにあるかがキャラごとに違うため、
+    // 立つ場所がずれた（秀才少女は腰の骨が元気少女より 7.8cm 後ろにあり、体ごと 4cm 手前に立って顔が大きく見えた）。
+    // 素の姿勢の「足元の中心から見た腰の骨の位置」を控えておき、引き戻したあとにその分を足して、足元の中心を原点に立たせる
+    let hipFeet = { x: 0, z: 0 };
+    if (hips){
+      let sx = 0, sz = 0, n = 0;
+      root.traverse(o=>{
+        if (!o.isMesh || /^Icosphere/.test(o.name)) return;
+        const pa = o.geometry.attributes.position;
+        for (let i = 0; i < pa.count; i++){
+          if (pa.getY(i) < gbox.min.y + 0.05){ sx += pa.getX(i); sz += pa.getZ(i); n++; }
+        }
+      });
+      const hw = new THREE.Vector3(); hips.updateWorldMatrix(true, false); hips.getWorldPosition(hw);
+      const hl = root.worldToLocal(hw.clone());
+      if (n) hipFeet = { x: hl.x - sx/n, z: hl.z - sz/n };
+    }
+    entries[spec.key] = {root, meshes, skel, mixer, action, dur, animName, hips, boneMap, restQ, restP,
+                         clips, clipIndex:0, tri: Math.round(tri), bones, height: h, hipFeet};
+
+    if (++loaded === MODELS.length){
+      document.getElementById('load').remove();
+      window.__DBG = {entries, cam, get frustum(){return frustum;}, controls};
+      // 2体の身長の大きい方に画角を合わせる（跳ぶので広めに）
+      // 小学生の試作（noFit）は背が高いので、画角の計算から外す（入れると幼稚園児のキャラが一回り小さく映る）
+      const hh = Math.max(...MODELS.filter(m=>!m.noFit && entries[m.key]).map(m=>entries[m.key].height));
+      controls.target.set(0, hh*0.60, 0);
+      frustum = hh*1.30; resize();
+      buildClipButtons();
+      apply();
+      setupFukuwarai();
+    }
+  });
+});
+
+// ---- 福笑い: 新お嬢様（鼻の点あり）の顔の絵に、眉・目・口の絵を置く ----
+// 部品の絵は faceparts.js に埋め込んである（外部に置いた目と口の絵は、読み込みを止められた）。
+// 置き方は mouthpaste.py・dressup.html の口と同じ。顔の三角形ごとに「部品の絵の画素 → 顔の絵の画素」の変換を作り、
+// 三角形で切り抜いて描く。頂点の座標（glTF、Y が上・前は +Z）は Blender で測った x, z と同じ値。
+// 初期値は、目の間隔の比 0.98 で縮めて両目の中点を合わせた位置（前の新お嬢様に焼いた位置）
+const FW_PARTS = [
+  // 初期値は、福笑いで決めて焼き込んだ位置（新お嬢様）。最初の初期値は、左眉 x -0.0772 z 0.8930 幅 0.0661、
+  // 右眉 x 0.0830 z 0.8930 幅 0.0661、左目 x -0.0909 z 0.8217 幅 0.1469、右目 x 0.0967 z 0.8246 幅 0.1469、口 x -0.0022 z 0.7097 幅 0.1567
+  // 2回目の再調整（眉・目 1.0cm 上、口 右0.5cm 上0.9cm 105%）を焼き込んだ位置。1回目に焼いた位置は、左眉 x -0.0972 z 0.9280 幅 0.075354、
+  // 右眉 x 0.1010 z 0.9240 幅 0.070066、左目 x -0.0909 z 0.8367、右目 x 0.1077 z 0.8396（目の幅 0.154245）、口 x -0.0022 z 0.7187 幅 0.1567
+  { key:"browL", name:"左眉（向かって左）", img:"browL", def:{ x:-0.0972, z:0.9380, w:0.075354, rot:8 } },
+  { key:"browR", name:"右眉（向かって右）", img:"browR", def:{ x: 0.1010, z:0.9340, w:0.070066, rot:-5 } },
+  { key:"eyeL", name:"左目（向かって左）", img:"eyemouth", src:[64, 10, 300, 240],  def:{ x:-0.0909, z:0.8467, w:0.154245, rot:2 } },
+  { key:"eyeR", name:"右目（向かって右）", img:"eyemouth", src:[447, 4, 300, 240],  def:{ x: 0.1077, z:0.8496, w:0.154245, rot:-1 } },
+  { key:"mouth", name:"口",                img:"eyemouth", src:[235, 259, 320, 200], def:{ x: 0.0028, z:0.7277, w:0.164535, rot:0 } },
+];
+// 福笑いに置くキャラ。キャラごとに部品の初期位置と今の位置を別々に持つ（スライダーは今選んでいるキャラを動かす）
+const FW_TARGETS = [
+  // お嬢様と秀才少女は位置を決めて焼き込み済みなので外した。値は下のコメントに残してある。
+  // ギャル少女の初期値は、福笑いで合わせて焼き込んだ位置。
+  { key:"fukuwarai_gyaru", name:"ギャル少女", defs: {
+      browL:{ x:-0.0980, z:0.9750, w:0.0806, rot:8 }, browR:{ x:0.1120, z:0.9810, w:0.0806, rot:-8 },
+      eyeL:{ x:-0.0973, z:0.8854, w:0.16995, rot:0 }, eyeR:{ x:0.1122, z:0.8885, w:0.16995, rot:0 },
+      mouth:{ x:0.0017, z:0.7599, w:0.176085, rot:0 } } },
+  // 芸術少女・わんぱく少女は**仮の位置**。顔の輪郭を元気少女・ギャル少女と重なるように合わせたので、
+  // ギャル少女の焼き込み済みの位置を、表示の縮尺（首の高さ × scaleAdj）を通して2人の座標に換算した。スライダーで合わせ直すこと。
+  // 前の仮の位置（鼻の点からお嬢様の差を写したもの）:
+  //   芸術  browL{-0.0972,1.0353,0.075354,8} browR{0.1010,1.0313,0.070066,-5} eyeL{-0.0909,0.9440,0.154245,2} eyeR{0.1077,0.9469,0.154245,-1} mouth{0.0028,0.8250,0.164535,0}
+  //   わんぱく browL{-0.0972,1.1223,…} browR{0.1010,1.1183,…} eyeL{-0.0909,1.0310,…} eyeR{0.1077,1.0339,…} mouth{0.0028,0.9120,…}（x・幅・傾きは芸術と同じ）
+  // 芸術少女はユーザーが福笑いで合わせた位置（2026年9月23日）。ギャル少女から換算した位置に対して
+  // 左眉 左1.0cm 下1.8cm、右眉 左1.0cm 下1.7cm、目 両方 下2.0cm、口 下2.4cm。換算した位置:
+  //   browL{-0.1147,1.1223} browR{0.1311,1.1293} eyeL{-0.1139,1.0175} eyeR{0.1313,1.0211} mouth{0.0020,0.8706}
+  { key:"fukuwarai_geijutsu", name:"芸術少女", defs: {
+      browL:{ x:-0.1247, z:1.1043, w:0.09433, rot:8 }, browR:{ x:0.1211, z:1.1123, w:0.09433, rot:-8 },
+      eyeL:{ x:-0.1139, z:0.9975, w:0.19891, rot:0 }, eyeR:{ x:0.1313, z:1.0011, w:0.19891, rot:0 },
+      mouth:{ x:0.0020, z:0.8466, w:0.20609, rot:0 } } },
+  // わんぱく少女はユーザーが福笑いで合わせた位置（2026年9月23日）。ギャル少女から換算した位置に対して
+  // 左眉 右1.2cm 下3.4cm 傾き0度、右眉 下3.4cm 傾き16度 長さ161%、左目 下2.3cm 傾き-3度、右目 右0.2cm 下2.3cm、口 下2.0cm。換算した位置:
+  //   browL{-0.1128,1.1501,rot 8} browR{0.1289,1.1570,rot -8} eyeL{-0.1120,1.0470} eyeR{0.1291,1.0505} mouth{0.0020,0.9025}
+  { key:"fukuwarai_wanpaku", name:"わんぱく少女", defs: {
+      browL:{ x:-0.1008, z:1.1161, w:0.09274, rot:0 }, browR:{ x:0.1289, z:1.1230, w:0.09274, rot:16, len:1.61 },
+      eyeL:{ x:-0.1120, z:1.0240, w:0.19556, rot:-3 }, eyeR:{ x:0.1311, z:1.0275, w:0.19556, rot:0 },
+      mouth:{ x:0.0020, z:0.8825, w:0.20262, rot:0 } } },
+];
+// 外したキャラの値（焼き込み済み。作り直す時はここから戻す）
+// お嬢様:   FW_PARTS の def をそのまま使っていた
+// 秀才少女: browL{-0.1010,0.9740,0.0806,8} browR{0.1301,0.9696,0.08175,-17}
+//           eyeL{-0.0923,0.8814,0.16995,-1} eyeR{0.1152,0.8855,0.16995,1} mouth{0.0037,0.7619,0.176085,0}
+const FW_KEYS = FW_TARGETS.map(t=>t.key);
+let fwActive = "fukuwarai_gyaru";      // 今スライダーが動かしている福笑いのキャラ
+let fwSelect = null;             // 福笑いのキャラを切り替える関数（setupFukuwarai が作る）
+function setupFukuwarai(){
+  const cards = document.getElementById('fwCards');
+  if (!window.FACEPARTS){ cards.textContent = "福笑いの部品の絵（faceparts.js）が読めない"; return; }
+  // キャラごとの顔の絵・描き込み先・部品の今の位置
+  const T = {};
+  FW_TARGETS.forEach(t=>{
+    const e = entries[t.key]; if (!e) return;
+    const mesh = e.meshes.find(m=>!/^Icosphere/.test(m.name));
+    const baseImg = mesh.material.map.image;
+    const canvas = document.createElement('canvas'); canvas.width = baseImg.width; canvas.height = baseImg.height;
+    T[t.key] = { ...t, mesh, baseImg, canvas, tex: null, st: Object.fromEntries(FW_PARTS.map(p=>[p.key, { ...t.defs[p.key] }])) };
+  });
+  if (!T[fwActive]){ cards.textContent = "福笑いのキャラが読めない"; return; }
+  const crops = {};
+  const load = src => new Promise((res, rej)=>{ const im = new Image(); im.onload = ()=>res(im); im.onerror = rej; im.src = src; });
+
+  function repaint(t){
+    t = t || T[fwActive];
+    const { mesh, baseImg, canvas } = t, W = canvas.width, H = canvas.height;
+    const mainCtx = canvas.getContext('2d');
+    mainCtx.setTransform(1,0,0,1,0,0); mainCtx.drawImage(baseImg, 0, 0);
+    const g = mesh.geometry, pos = g.attributes.position.array, uv = g.attributes.uv.array, idx = g.index ? g.index.array : null;
+    const tri = idx ? idx.length/3 : pos.length/9;
+    // 描く順番は 目・口 → 眉。眉を先に描くと、目の部品の上端のふち（肌色がにじんだ半透明の縁）が眉にかぶり、
+    // 眉と目の間が狭い秀才少女で、キャラの左眉が肌色で欠けて見えた
+    const drawList = FW_PARTS.filter(p=>!/^brow/.test(p.img)).concat(FW_PARTS.filter(p=>/^brow/.test(p.img)));
+    // 眉は、元の絵で肌の画素にだけ描く（前髪の上に眉が乗って見えないように。ギャル少女で眉が金髪の前髪の上に出た）。
+    // 眉を別の層に描き、元の絵から作った肌の型（partpaste.py と同じ判定）で切り抜いてから重ねる
+    if (!t.skinMask){
+      const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
+      const mctx = mc.getContext('2d'); mctx.drawImage(baseImg, 0, 0);
+      const im = mctx.getImageData(0, 0, W, H), d = im.data;
+      for (let i = 0; i < d.length; i += 4){
+        const r = d[i]/255, g2 = d[i+1]/255, b = d[i+2]/255, mx = Math.max(r, g2, b), mn = Math.min(r, g2, b);
+        const s = mx > 0 ? (mx - mn) / mx : 0;
+        const w = (r >= g2 && g2 >= b) ? Math.min(1, Math.max(0, (0.34 - s)/0.06)) * Math.min(1, Math.max(0, (mx - 0.85)/0.07)) : 0;
+        d[i] = d[i+1] = d[i+2] = 255; d[i+3] = Math.round(w*255);
+      }
+      mctx.putImageData(im, 0, 0); t.skinMask = mc;
+      t.browLayer = document.createElement('canvas'); t.browLayer.width = W; t.browLayer.height = H;
+    }
+    const bctx = t.browLayer.getContext('2d'); bctx.setTransform(1,0,0,1,0,0); bctx.clearRect(0, 0, W, H);
+    for (const p of drawList){
+      const dec = crops[p.key]; if (!dec) continue;
+      const isBrow = /^brow/.test(p.img);
+      const ctx = isBrow ? bctx : mainCtx;
+      // 眉は「長さ」で横だけ伸び縮みする（高さ＝太さは変えない）。長さが無い部品は 1
+      const st0 = t.st[p.key], cx = st0.x, cy = st0.z, rot = st0.rot;
+      const mh = st0.w * dec.height / dec.width, mw = st0.w * (st0.len || 1);
+      const c = Math.cos(rot*Math.PI/180), s = Math.sin(rot*Math.PI/180);
+      const DW = dec.width, DH = dec.height, R = 0.8*Math.max(mw, mh);
+      for (let t2=0; t2<tri; t2++){
+        const vs = idx ? [idx[t2*3], idx[t2*3+1], idx[t2*3+2]] : [t2*3, t2*3+1, t2*3+2];
+        // 三角形の範囲が部品の範囲（中心から R）と重なれば塗る。前は3頂点とも R 以内の三角形だけを塗っていたので、
+        // おでこの三角形が大きい秀才少女で、眉の真ん中にかかる三角形が飛ばされ、眉が途中で欠けて肌が見えた
+        let ok = true; const P = [];
+        let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+        for (const v of vs){ const x = pos[v*3], y = pos[v*3+1]; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+        if (x1 < cx-R || x0 > cx+R || y1 < cy-R || y0 > cy+R) continue;
+        for (const v of vs){
+          const x = pos[v*3], y = pos[v*3+1], z = pos[v*3+2];
+          if (z < 0.12){ ok = false; break; }
+          const rx = (x-cx)*c + (y-cy)*s, ry = -(x-cx)*s + (y-cy)*c;
+          P.push({dx:(rx/mw + 0.5)*DW, dy:(-ry/mh + 0.5)*DH, tx:uv[v*2]*W, ty:uv[v*2+1]*H});
+        }
+        if (!ok) continue;
+        const [p0,p1,p2] = P;
+        const d = (p1.dx-p0.dx)*(p2.dy-p0.dy) - (p2.dx-p0.dx)*(p1.dy-p0.dy);
+        if (Math.abs(d) < 1e-6) continue;
+        const A11 = ((p1.tx-p0.tx)*(p2.dy-p0.dy) - (p2.tx-p0.tx)*(p1.dy-p0.dy))/d;
+        const A12 = ((p2.tx-p0.tx)*(p1.dx-p0.dx) - (p1.tx-p0.tx)*(p2.dx-p0.dx))/d;
+        const A21 = ((p1.ty-p0.ty)*(p2.dy-p0.dy) - (p2.ty-p0.ty)*(p1.dy-p0.dy))/d;
+        const A22 = ((p2.ty-p0.ty)*(p1.dx-p0.dx) - (p1.ty-p0.ty)*(p2.dx-p0.dx))/d;
+        const ee = p0.tx - A11*p0.dx - A12*p0.dy, f = p0.ty - A21*p0.dx - A22*p0.dy;
+        ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+        // 三角形を重心から 1.5 画素広げて切り抜く（境目の塗り残しが舌のひびになるため）
+        const gx = (p0.tx+p1.tx+p2.tx)/3, gy = (p0.ty+p1.ty+p2.ty)/3;
+        const grow = q => { const vx = q.tx-gx, vy = q.ty-gy, L = Math.hypot(vx, vy) || 1; return [q.tx + vx/L*1.5, q.ty + vy/L*1.5]; };
+        const [a0, a1, a2] = [grow(p0), grow(p1), grow(p2)];
+        ctx.beginPath(); ctx.moveTo(a0[0],a0[1]); ctx.lineTo(a1[0],a1[1]); ctx.lineTo(a2[0],a2[1]); ctx.closePath(); ctx.clip();
+        ctx.setTransform(A11, A21, A12, A22, ee, f); ctx.drawImage(dec, 0, 0); ctx.restore();
+      }
+    }
+    // 眉の層を肌の型で切り抜いて、目・口を描いた絵の上に重ねる
+    bctx.setTransform(1,0,0,1,0,0);
+    bctx.globalCompositeOperation = 'destination-in'; bctx.drawImage(t.skinMask, 0, 0); bctx.globalCompositeOperation = 'source-over';
+    mainCtx.setTransform(1,0,0,1,0,0); mainCtx.drawImage(t.browLayer, 0, 0);
+    if (!t.tex){ t.tex = new THREE.CanvasTexture(canvas); t.tex.flipY = false; t.tex.colorSpace = THREE.SRGBColorSpace; }
+    t.tex.needsUpdate = true; mesh.material.map = t.tex; mesh.material.needsUpdate = true;
+    if (t.key === fwActive) showOut();
+  }
+  function showOut(){
+    const t = T[fwActive];
+    document.getElementById('fwOut').textContent = "【" + t.name + "】\n" + FW_PARTS.map(p=>{ const s = t.st[p.key], dec = crops[p.key];
+      const hh = dec ? s.w * dec.height / dec.width : 0;
+      const ln = (s.len && s.len !== 1) ? `  長さ ${(s.len*100).toFixed(0)}%（描く幅 ${(s.w*s.len).toFixed(4)}）` : "";
+      return `${p.name}\n  中心 x ${s.x.toFixed(4)}  z ${s.z.toFixed(4)}  幅 ${s.w.toFixed(4)}  高さ ${hh.toFixed(4)}  傾き ${s.rot.toFixed(0)}度${ln}`; }).join("\n");
+  }
+  // スライダーを、今選んでいるキャラの部品の位置に合わせる
+  function syncInputs(){
+    const t = T[fwActive];
+    FW_PARTS.forEach(p=>{
+      const s = t.st[p.key], d = t.defs[p.key];
+      const v = { dx: Math.round((s.x - d.x)*1000), dz: Math.round((s.z - d.z)*1000), sc: Math.round(s.w / d.w * 100), rot: Math.round(s.rot), ln: Math.round((s.len || 1) * 100) };
+      Object.entries(p.inputs).forEach(([k, o])=>{ o.inp.value = v[k]; o.val.textContent = o.fmt(+o.inp.value); });
+    });
+  }
+
+  // 部品ごとのスライダー。左右・上下は初期位置からのずれ（0.1cm 刻み）、大きさは %、傾きは度
+  const SL = [ ["左右", "dx", -60, 60, v=>`${(v/10).toFixed(1)} cm`], ["上下", "dz", -60, 60, v=>`${(v/10).toFixed(1)} cm`],
+               ["大きさ", "sc", 50, 160, v=>`${v} %`], ["傾き", "rot", -30, 30, v=>`${v} 度`],
+               // 眉だけ：横の長さ（太さは変えない）。わんぱく少女で眉の長さを変えたいと言われて足した
+               ["長さ", "ln", 50, 200, v=>`${v} %`, /^brow/] ];
+  FW_PARTS.forEach(p=>{
+    const box = document.createElement('div'); box.style.cssText = "border-top:1px solid var(--line);padding:6px 0 2px";
+    const h = document.createElement('div'); h.style.cssText = "display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600";
+    h.textContent = p.name;
+    const rb = document.createElement('button'); rb.textContent = "元に戻す"; rb.style.cssText = "font-size:11px;padding:2px 7px"; h.appendChild(rb);
+    box.appendChild(h);
+    p.inputs = {};
+    SL.forEach(([label, k, mn, mx, fmt, only])=>{
+      if (only && !only.test(p.img)) return;
+      const row = document.createElement('div'); row.style.cssText = "display:grid;grid-template-columns:40px 1fr 56px;gap:6px;align-items:center;font-size:12px";
+      const l = document.createElement('span'); l.textContent = label; l.style.color = "var(--sub)";
+      const inp = document.createElement('input'); inp.type = 'range'; inp.min = mn; inp.max = mx; inp.step = 1; inp.value = (k === 'sc' || k === 'ln') ? 100 : 0;
+      const val = document.createElement('span'); val.className = 'num'; val.style.textAlign = 'right'; val.textContent = fmt(+inp.value);
+      inp.oninput = ()=>{ val.textContent = fmt(+inp.value); applyPart(p); if (current !== fwActive) switchTo(fwActive); };
+      row.append(l, inp, val); box.appendChild(row);
+      p.inputs[k] = { inp, val, fmt };
+    });
+    rb.onclick = ()=>{ resetPart(p); repaint(); };
+    cards.appendChild(box);
+  });
+  function applyPart(p){
+    const g = k => +p.inputs[k].inp.value, t = T[fwActive], d = t.defs[p.key];
+    t.st[p.key] = { x: d.x + g('dx')/1000, z: d.z + g('dz')/1000, w: d.w * g('sc')/100, rot: g('rot'), len: p.inputs.ln ? g('ln')/100 : (d.len || 1) };
+    repaint();
+  }
+  function resetPart(p){
+    // 傾きと長さのスライダーは初期値からのずれではなく値そのものなので、初期値の傾き・長さに合わせる
+    // （前は傾きを 0 に戻していて、初期値の傾きが 0 でないキャラでスライダーの表示と絵がずれた）
+    const t = T[fwActive], d = t.defs[p.key];
+    const v0 = { dx: 0, dz: 0, sc: 100, rot: Math.round(d.rot || 0), ln: Math.round((d.len || 1) * 100) };
+    Object.entries(p.inputs).forEach(([k, o])=>{ o.inp.value = v0[k]; o.val.textContent = o.fmt(+o.inp.value); });
+    t.st[p.key] = { ...t.defs[p.key] };
+  }
+  document.getElementById('fwReset').onclick = ()=>{ FW_PARTS.forEach(resetPart); repaint(); };
+  // 福笑いのキャラを切り替える。スライダーはそのキャラの今の位置を表示する
+  fwSelect = k=>{ if (!T[k]) return; fwActive = k; syncInputs(); showOut(); };
+
+  const F = window.FACEPARTS;
+  Promise.all([load(F.eyemouth), load(F.browL), load(F.browR)]).then(([em, bl, br])=>{
+    const imgs = { eyemouth: em, browL: bl, browR: br };
+    FW_PARTS.forEach(p=>{
+      const im = imgs[p.img];
+      if (!p.src){ crops[p.key] = im; return; }
+      const [sx, sy, sw, sh] = p.src; const cv = document.createElement('canvas'); cv.width = sw; cv.height = sh;
+      const cx2 = cv.getContext('2d'); cx2.drawImage(im, sx, sy, sw, sh, 0, 0, sw, sh);
+      // 目と口の部品のふちに残った肌色の画素を透明にする（partpaste.py の SKINCUT と同じ判定）。
+      // 肌色 = 赤 >= 緑 >= 青、鮮やかさ 0.08〜0.45、明るさ 0.60 以上。白目（鮮やかさが低い）・瞳・まつ毛・舌は外れる
+      const id = cx2.getImageData(0, 0, sw, sh), dd = id.data;
+      for (let i = 0; i < dd.length; i += 4){
+        const r = dd[i]/255, g = dd[i+1]/255, b = dd[i+2]/255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), s = mx > 0 ? (mx-mn)/mx : 0;
+        if (r >= g && g >= b && s >= 0.08 && s <= 0.45 && mx >= 0.60) dd[i+3] = 0;
+      }
+      cx2.putImageData(id, 0, 0); crops[p.key] = cv;
+    });
+    Object.values(T).forEach(t=>repaint(t));
+    if (FW_KEYS.includes(current)) fwSelect(current);
+    window.__FW = { FW_PARTS, T, repaint };
+  }).catch(err=>{ cards.textContent = "福笑いの部品の絵が読めない: " + err; });
+}
+
+const btnBox = document.getElementById('mBtns');
+btnBox.classList.remove('row');            // 縦に積むので横並びの指定を外す
+// 同じキャラをまとめ、名前の広いボタンの下に色違いのボタンを並べる
+const GROUPS = [];
+MODELS.forEach(m=>{
+  let g = GROUPS.find(x=>x.char===m.char);
+  if (!g){ g = {char:m.char, items:[]}; GROUPS.push(g); }
+  g.items.push(m);
+});
+GROUPS.forEach(g=>{
+  const box = document.createElement('div'); box.className = 'chargrp';
+  const head = document.createElement('button');
+  head.className = 'charname'; head.textContent = g.char; head.dataset.c = g.char;
+  head.onclick = ()=>switchTo(g.items[0].key);   // 名前を押したら、そのキャラの1Pへ
+  box.appendChild(head);
+  // row を指定したものは、その段に並べる（指定なしは1段目）
+  const rows = {};
+  g.items.forEach(m=>{
+    const r = m.row || 1;
+    if (!rows[r]){ rows[r] = document.createElement('div'); rows[r].className = 'prow'; }
+    const b = document.createElement('button');
+    b.className = 'pbtn'; b.textContent = m.p; b.dataset.k = m.key;
+    b.onclick = ()=>switchTo(m.key);
+    rows[r].appendChild(b);
+  });
+  Object.keys(rows).sort().forEach(r=>box.appendChild(rows[r]));
+  btnBox.appendChild(box);
+});
+// 福笑いの欄の切り替えスイッチ（元気少女 1P ⇔ 福笑いのお嬢様）。カメラと姿勢はそのまま
+document.querySelectorAll('#fwSwitch button').forEach(b=>{ b.onclick = ()=>switchTo(b.dataset.k); });
+// お嬢様（福笑い）だけを表示の上で動かす量（実寸の m）。あごの高さを元気少女に合わせて見比べるため。
+// 描く直前に足して、描いたあとに引く（腰を原点へ引き戻す処理に消されないように）。モデルのファイルは変えない
+const fwOff = { x: 0, z: 0 };
+[['fwOx','x'], ['fwOz','z']].forEach(([id, k])=>{
+  const el = document.getElementById(id), v = document.getElementById(id + 'V');
+  el.oninput = ()=>{ fwOff[k] = (+el.value)/1000; v.textContent = (fwOff[k]*100).toFixed(1) + " cm"; if (current !== fwActive) switchTo(fwActive); };
+});
+document.getElementById('fwOreset').onclick = ()=>{ ['fwOx','fwOz'].forEach(id=>{ document.getElementById(id).value = 0; document.getElementById(id+'V').textContent = "0.0 cm"; }); fwOff.x = 0; fwOff.z = 0; };
+function switchTo(k){
+  current = k;
+  if (FW_KEYS.includes(k)) { fwActive = k; if (fwSelect) fwSelect(k); }   // 福笑いのキャラを選んだら、スライダーもそのキャラへ
+  document.querySelectorAll('#fwSwitch button').forEach(b=>b.classList.toggle('on', b.dataset.k===k));
+  const m = MODELS.find(x=>x.key===k);
+  btnBox.querySelectorAll('button.pbtn').forEach(b=>b.classList.toggle('on', b.dataset.k===k));
+  btnBox.querySelectorAll('button.charname').forEach(b=>b.classList.toggle('on', b.dataset.c===m.char));
+  apply();
+}
+switchTo(current);                          // 最初の1体を選んだ状態にする
+
+addEventListener('keydown', ev=>{
+  if (ev.code==='Space'){
+    ev.preventDefault();
+    const i = MODELS.findIndex(m=>m.key===current);
+    switchTo(MODELS[(i+1)%MODELS.length].key);
+  }
+});
+
+document.getElementById('wire').onchange = ev=>{
+  Object.values(entries).forEach(e=>e.meshes.forEach(m=>{ m.material.wireframe = ev.target.checked; }));
+};
+document.getElementById('bone').onchange = ()=>apply();
+document.getElementById('grid').onchange = ev=>{ grid.visible = ev.target.checked; };
+
+// ---- 腕の角度の上乗せ ----
+// 腕を「体の横で上げ下げする」向きに回す軸は、腕の向きと真上の外積で求まる。
+// 左右で腕の向きが反転するので、この式ひとつで両腕が対称に動く。
+const _up = new THREE.Vector3(0,1,0);
+const _p0 = new THREE.Vector3(), _p1 = new THREE.Vector3(), _dir = new THREE.Vector3();
+const _axis = new THREE.Vector3(), _q = new THREE.Quaternion();
+const _m3 = new THREE.Matrix3(), _m4 = new THREE.Matrix4();
+
+// 体を基準にした軸を作る。腕の現在の向きから軸を作ると、腕が前後に振られている
+// 瞬間には回転が前後方向になってしまい、「広げ」のつもりが「振り」になる。
+// 両肩を結ぶ線を体の右方向とし、真上との外積で体の前方向を得る。
+function bodyAxes(e){
+  const L=e.boneMap["LeftShoulder"]||e.boneMap["LeftArm"];
+  const R=e.boneMap["RightShoulder"]||e.boneMap["RightArm"];
+  if (!L||!R) return null;
+  L.updateWorldMatrix(true,false); R.updateWorldMatrix(true,false);
+  _p0.setFromMatrixPosition(R.matrixWorld);
+  _p1.setFromMatrixPosition(L.matrixWorld);
+  const right=_p0.clone().sub(_p1).normalize();      // 左肩→右肩
+  const fwd=new THREE.Vector3().crossVectors(_up, right).normalize();
+  return {right, fwd};
+}
+
+function rotateBoneWorldAxis(b, worldAxis, deg){
+  if (!b || !b.parent) return;
+  _axis.copy(worldAxis);
+  _m4.copy(b.parent.matrixWorld).invert();
+  _m3.setFromMatrix4(_m4);
+  _axis.applyMatrix3(_m3).normalize();
+  _q.setFromAxisAngle(_axis, THREE.MathUtils.degToRad(deg));
+  b.quaternion.premultiply(_q);
+  b.updateMatrixWorld(true);
+}
+
+// 広げ：体の前方向まわりに回す。左右で符号を反転させると両腕が同じだけ開く
+function applyArmOffset(e, deg){
+  const ax = bodyAxes(e); if (!ax) return;
+  rotateBoneWorldAxis(e.boneMap["LeftArm"],  ax.fwd,  deg);
+  rotateBoneWorldAxis(e.boneMap["RightArm"], ax.fwd, -deg);
+}
+
+function measuredArmAngle(e){
+  // 肩から手までの向きが、真下から何度開いているか
+  const out=[];
+  [["LeftArm","LeftHand"],["RightArm","RightHand"]].forEach(([a,h])=>{
+    const ba=e.boneMap[a], bh=e.boneMap[h]; if(!ba||!bh) return;
+    ba.updateWorldMatrix(true,false); bh.updateWorldMatrix(true,false);
+    _p0.setFromMatrixPosition(ba.matrixWorld);
+    _p1.setFromMatrixPosition(bh.matrixWorld);
+    const v=_dir.subVectors(_p1,_p0).normalize();
+    out.push(THREE.MathUtils.radToDeg(Math.acos(Math.max(-1,Math.min(1, -v.y)))));
+  });
+  return out;
+}
+
+// ---- 腕の振り（前後）の増減 ----
+// アニメが与えた回転と、バインド姿勢との差を k 倍する。
+// k=0 で振らなくなり、k=1.5 で大きく振る。振り以外の腕の動きも同じ比率で変わる。
+const ARM_BONES = ["LeftShoulder","LeftArm","LeftForeArm","RightShoulder","RightArm","RightForeArm"];
+
+// three.js のミキサーは「前フレームから値が変わっていなければボーンに書き戻さない」。
+// こちらが直接書き換えると、次のフレームで上書きされず書き換えた姿勢が残り続ける。
+// そこで、描画前に手を入れて、描画後にアニメの値へ戻す。
+function saveArm(e){
+  if (!e._sq) e._sq = {};
+  ARM_BONES.forEach(nm=>{ const b=e.boneMap[nm]; if (b) e._sq[nm] = b.quaternion.clone(); });
+}
+function restoreArm(e){
+  if (!e._sq) return;
+  ARM_BONES.forEach(nm=>{ const b=e.boneMap[nm]; if (b && e._sq[nm]) b.quaternion.copy(e._sq[nm]); });
+}
+const _qi = new THREE.Quaternion(), _qd = new THREE.Quaternion(), _qr = new THREE.Quaternion();
+function applySwing(e, k){
+  ARM_BONES.forEach(nm=>{
+    const b=e.boneMap[nm], r=e.restQ[nm];
+    if (!b || !r) return;
+    _qr.copy(r).invert();
+    _qd.copy(_qr).multiply(b.quaternion);          // バインドからの差
+    _qi.identity().slerp(_qd, k);                  // その差を k 倍
+    b.quaternion.copy(r).multiply(_qi);
+    b.updateMatrixWorld(true);
+  });
+}
+function handGapZ(e){
+  // 左手と右手の前後差（腰から見た座標）。振れているほど大きくなる
+  const B=e.boneMap, H=B["Hips"], L=B["LeftHand"], R=B["RightHand"];
+  if(!H||!L||!R) return null;
+  H.updateWorldMatrix(true,false); L.updateWorldMatrix(true,false); R.updateWorldMatrix(true,false);
+  _m4.copy(H.matrixWorld).invert();
+  const a=new THREE.Vector3().setFromMatrixPosition(L.matrixWorld).applyMatrix4(_m4);
+  const c=new THREE.Vector3().setFromMatrixPosition(R.matrixWorld).applyMatrix4(_m4);
+  const s=Math.max(1e-6, e.height);
+  return (a.z-c.z)/ (1/ s);   // 身長1.0に正規化済みなので、そのまま比率として使える
+}
+
+// 全身の動きの大きさ。腕だけでなく全ボーンの「基準姿勢からの差」を k 倍する。
+// 腰の上下動も同じ比率で縮めないと、体だけ跳ねて足が付いてこない。
+function applyMotion(e, k){
+  Object.keys(e.restQ).forEach(nm=>{
+    const b=e.boneMap[nm], r=e.restQ[nm];
+    if (!b || !r) return;
+    _qr.copy(r).invert();
+    _qd.copy(_qr).multiply(b.quaternion);
+    _qi.identity().slerp(_qd, k);
+    b.quaternion.copy(r).multiply(_qi);
+  });
+  if (e.hips && e.restP && e.restP.Hips){
+    const p=e.restP.Hips;
+    e.hips.position.set(p.x + (e.hips.position.x-p.x)*k,
+                        p.y + (e.hips.position.y-p.y)*k,
+                        p.z + (e.hips.position.z-p.z)*k);
+  }
+  e.root.updateMatrixWorld(true);
+}
+function saveAll(e){
+  if (!e._sa) e._sa = {};
+  Object.keys(e.restQ).forEach(nm=>{ const b=e.boneMap[nm]; if (b) {
+    if (!e._sa[nm]) e._sa[nm]={q:new THREE.Quaternion(), p:new THREE.Vector3()};
+    e._sa[nm].q.copy(b.quaternion); e._sa[nm].p.copy(b.position);
+  }});
+}
+function restoreAll(e){
+  if (!e._sa) return;
+  Object.keys(e._sa).forEach(nm=>{ const b=e.boneMap[nm]; if (b){
+    b.quaternion.copy(e._sa[nm].q); b.position.copy(e._sa[nm].p);
+  }});
+}
+
+let motionK = 1;
+const mtSlider = document.getElementById('motion');
+mtSlider.oninput = ()=>{ motionK = (+mtSlider.value)/100; markMt(); };
+document.querySelectorAll('.mtp').forEach(b=>{
+  b.onclick = ()=>{ motionK = (+b.dataset.v)/100; mtSlider.value = b.dataset.v; markMt(); };
+});
+function markMt(){
+  document.querySelectorAll('.mtp').forEach(x=>x.classList.toggle('on',(+x.dataset.v)/100===motionK));
+  document.getElementById('motionInfo').textContent = motionK.toFixed(2)+"倍";
+}
+
+let swingK = 1;
+const swSlider = document.getElementById('swing');
+swSlider.oninput = ()=>{ swingK = (+swSlider.value)/100; markSw(); };
+document.querySelectorAll('.swp').forEach(b=>{
+  b.onclick = ()=>{ swingK = (+b.dataset.v)/100; swSlider.value = b.dataset.v; markSw(); };
+});
+function markSw(){
+  document.querySelectorAll('.swp').forEach(x=>x.classList.toggle('on', (+x.dataset.v)/100===swingK));
+}
+
+let armDeg = 0;
+const armSlider = document.getElementById('arm');
+armSlider.oninput = ()=>{ armDeg = +armSlider.value; markArm(); };
+document.querySelectorAll('.armp').forEach(b=>{
+  b.onclick = ()=>{ armDeg = +b.dataset.v; armSlider.value = armDeg; markArm(); };
+});
+function markArm(){
+  document.querySelectorAll('.armp').forEach(x=>x.classList.toggle('on', (+x.dataset.v)===armDeg));
+}
+
+// ---- 再生（時間を共有する。同じコマで比べるため） ----
+let playing = true, speed = 1, t = 0;
+const playBtn = document.getElementById('play');
+playBtn.onclick = ()=>{ playing=!playing; playBtn.textContent = playing?"一時停止":"再生"; playBtn.classList.toggle('on', playing); };
+document.querySelectorAll('.spd').forEach(b=>{
+  b.onclick = ()=>{ document.querySelectorAll('.spd').forEach(x=>x.classList.remove('on')); b.classList.add('on'); speed=parseFloat(b.dataset.s); };
+});
+function pause(){ playing=false; playBtn.textContent="再生"; playBtn.classList.remove('on'); }
+document.getElementById('prev').onclick = ()=>{ pause(); t -= 1/30; };
+document.getElementById('next').onclick = ()=>{ pause(); t += 1/30; };
+const seek = document.getElementById('seek');
+seek.oninput = ()=>{ pause(); const e=entries[current]; if(e) t = e.dur*(seek.value/1000); };
+
+const clock = new THREE.Clock();
+function loop(){
+  requestAnimationFrame(loop);
+  const dt = clock.getDelta();
+  const e = entries[current];
+  if (e && e.dur>0){
+    if (playing) t += dt*speed;
+    t = ((t % e.dur) + e.dur) % e.dur;
+    // 表示中でない方も同じ時刻に合わせておく（切替時にズレないように）。
+    // action.time を直接入れて update(0) しても姿勢が更新されないので setTime を使う。
+    const wp = new THREE.Vector3();
+    Object.values(entries).forEach(x=>{
+      if (x.mixer && x.dur>0) x.mixer.setTime(Math.min(t, x.dur-1e-4));
+      saveAll(x);   // アニメが出した値を控えておく（描画後に戻す）
+      if (stillMode){
+        // 直立不動: アニメの値を捨て、読み込み直後の骨の姿勢に置き換える（描画後はアニメの値に戻る）
+        Object.keys(x.restQ).forEach(nm=>{ const b=x.boneMap[nm]; if (b){ b.quaternion.copy(x.restQ[nm]); b.position.copy(x.restP[nm]); } });
+        x.root.updateMatrixWorld(true);
+      } else {
+        // 順番は「全身の縮小」→「腕の振り」→「広げの上乗せ」
+        if (motionK !== 1) applyMotion(x, motionK);
+        if (swingK !== 1) applySwing(x, swingK);
+        if (armDeg !== 0) applyArmOffset(x, armDeg);
+      }
+      // クリップに前進移動が入っているので、腰の水平位置を原点に引き戻して
+      // 「その場で跳ぶ」状態にする（表示だけの補正。ゲームでは移動はコード側が持つ）
+      if (x.hips){
+        x.hips.updateWorldMatrix(true,false);
+        wp.setFromMatrixPosition(x.hips.matrixWorld);
+        x.root.position.x -= wp.x;
+        x.root.position.z -= wp.z;
+        // 腰の骨ではなく、素の姿勢の足元の中心が原点に来るようにずらす（キャラごとの腰の骨の位置の違いを消す）
+        x.root.position.x += x.hipFeet.x * x.root.scale.x;
+        x.root.position.z += x.hipFeet.z * x.root.scale.x;
+      }
+    });
+    seek.value = Math.round(1000*t/e.dur);
+    document.getElementById('time').textContent = t.toFixed(2)+" / "+e.dur.toFixed(2)+" 秒";
+    const ang = measuredArmAngle(e);
+    document.getElementById('armInfo').textContent =
+      "補正 " + (armDeg>0?"+":"") + armDeg + "度 ／ 実測 " +
+      (ang.length===2 ? ("左"+ang[0].toFixed(0)+"度 右"+ang[1].toFixed(0)+"度") : "—");
+    const gz = handGapZ(e);
+    document.getElementById('swingInfo').textContent =
+      "振り " + swingK.toFixed(2) + "倍 ／ 前後の開き " + (gz===null?"—":gz.toFixed(2));
+  }
+  controls.update();
+  const fwE = entries[fwActive];
+  const fdx = fwE ? fwOff.x * fwE.root.scale.x : 0, fdy = fwE ? fwOff.z * fwE.root.scale.x : 0;
+  if (fwE){ fwE.root.position.x += fdx; fwE.root.position.y += fdy; fwE.root.updateMatrixWorld(true); }
+  renderer.render(scene, cam);
+  if (fwE){ fwE.root.position.x -= fdx; fwE.root.position.y -= fdy; }
+  // 描画後にアニメの値へ戻す。戻さないとミキサーが「変化なし」と判断して
+  // 次のフレームで書き戻さず、いじった姿勢が固まってしまう
+  Object.values(entries).forEach(restoreAll);
+}
+addEventListener('resize', resize);
+resize(); loop();
+</script>
+</html>

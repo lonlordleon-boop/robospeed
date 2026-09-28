@@ -37,7 +37,19 @@ const body = `# ================================================================
 # =========================================================================
 
 # ---- 別のプロジェクト・大きすぎるもの ----
-QuarterTest/
+# QuarterTest は全部無視。ただし文字だけの小さいファイル（手順書・キャラクターツール・面えらび・Blender のスクリプト）は戻す
+# （2026-09-28。モデル・絵は大きいので入れない）
+QuarterTest/*
+!QuarterTest/Tools/
+QuarterTest/Tools/*
+!QuarterTest/Tools/キャラ作成の手順.md
+!QuarterTest/Tools/preview/
+QuarterTest/Tools/preview/*
+!QuarterTest/Tools/preview/preview.html
+!QuarterTest/Tools/preview/facepick.html
+!QuarterTest/Tools/blender/
+QuarterTest/Tools/blender/*
+!QuarterTest/Tools/blender/*.py
 _upload/
 scratchpad/
 
