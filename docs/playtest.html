@@ -8127,7 +8127,7 @@ adsInit();
     ["#staff",    () => { staffClose(); }],                     // 設定の上に重なるので、設定より先に見る
     ["#prefs",    () => { $("#prefs").classList.remove("on"); }],
     ["#settings", () => { $("#settings").classList.remove("on"); }],
-    ["#newsview", null],
+    ["#newsview", () => { $("#newsview").classList.remove("on"); }],   // 「閉じる」と同じ（以前は null で戻るが効かなかった）
     ["#paused",   () => { resumeGame(); }],
   ];
 
