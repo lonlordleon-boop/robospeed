@@ -960,6 +960,43 @@ body.dev .handline {
 #newsbar i { display: block; margin-top: 2px; font-size: 11px; font-style: normal; color: #c3ced5; }
 /* 本文は改行をそのまま出す（投稿した形のまま読ませる） */
 #newsbody { white-space: pre-wrap; font-size: 14px; line-height: 1.8; }
+
+/* ---- スタッフロール（★v1.13o・9-6aj）----
+   **流すだけの画面。** 下から上へゆっくり流し、最後の ©AID GAMES がまん中で止まる。
+   飾りは足さない。見出しは小さく淡く、名前は大きくはっきり。 */
+#staff { padding: 0; overflow: hidden; background: var(--ground); }
+#staffwin {
+  /* 下は「閉じる」の上まで。**流れる名前がボタンの裏を通り抜けない**ようにする */
+  position: absolute; top: 0; left: 0; right: 0; overflow: hidden;
+  bottom: calc(max(14px, env(safe-area-inset-bottom)) + 84px);
+  /* 上下の端でふっと消える。**文字が枠で切れて見えない**ようにする */
+  -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 88%, transparent);
+          mask-image: linear-gradient(transparent, #000 12%, #000 88%, transparent);
+}
+#staffroll {
+  position: absolute; left: 0; right: 0; top: 0;
+  text-align: center; padding: 0 20px; will-change: transform;
+}
+#staffroll img { width: min(64vw, 300px); height: auto; margin-bottom: 56px; }
+#staffroll .sec { margin-bottom: 52px; }
+#staffroll h3 {
+  font-size: 12px; font-weight: 700; letter-spacing: .2em; color: var(--muted);
+  margin: 0 0 14px;
+}
+#staffroll .nm { font-size: 19px; font-weight: 700; line-height: 1.9; color: var(--ink); }
+#staffroll .sub { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: -4px; }
+#staffroll .tail { font-size: 15px; font-weight: 600; line-height: 1.7; margin-top: 12px; }
+#staffroll .last { font-size: 14px; letter-spacing: .12em; color: var(--muted); padding-top: 8px; }
+/* 下の操作。流れる範囲（#staffwin）の外に置くので、名前とは重ならない */
+#staffbar {
+  position: absolute; left: 0; right: 0;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+#staffbar .note { font-size: 11px; color: var(--muted); margin: 0; }
+/* 動きを減らす設定の人には流さない。**全部を並べて、普通にスクロールで読む** */
+#staff.still #staffwin { overflow: auto; -webkit-mask-image: none; mask-image: none; }
+#staff.still #staffroll { position: static; padding: 48px 20px 120px; }
 #tape .txt {
   position: absolute; left: 0; top: 50%; transform: translate(0, -50%);
   white-space: nowrap; color: #12171a;
@@ -2347,9 +2384,25 @@ body.demo #demotag { display: block; }
         に書いてあります。
       </p>
     </div>
+    <!-- スタッフロールの入口（★v1.13o・9-6aj）。
+         入口のボタン列はもう4つで埋まっているので、**こちらに置く。** 毎回見るものではない。 -->
+    <div class="btnrow">
+      <button class="btn" id="pf_staff">スタッフ</button>
+    </div>
     <div class="btnrow">
       <button class="btn primary plate" id="pf_close"><span>閉じる</span></button>
     </div>
+  </div>
+</div>
+
+<!-- スタッフロール（★v1.13o・9-6aj）。**設定の上に重なる**ので、#prefs より後ろに置く
+     （.sheet は全部 z-index 60。あとに書いたものが上に来る）。
+     中身は JS の STAFF から組む。ここには器だけ。 -->
+<div class="sheet" id="staff">
+  <div id="staffwin"><div id="staffroll"></div></div>
+  <div id="staffbar">
+    <p class="note" id="staffhint">タップで早送り</p>
+    <button class="btn" id="staffclose">閉じる</button>
   </div>
 </div>
 
@@ -7507,6 +7560,100 @@ $("#pf_close").addEventListener("click", () => {
   rankNameSet($("#pf_name").value.trim().slice(0, 12));
   $("#prefs").classList.remove("on");
 });
+
+/* ---- スタッフロール（★v1.13o・9-6aj）----
+   **名前は固定で持つ。順位表から読みに行かない。**
+   製品版のあとは知らない人も順位表に入ってくるので、自動で拾うと
+   その人たちまでスペシャルサンクスに載ってしまう。
+
+   スペシャルサンクスは、クローズドテストのあいだに順位表へ名前を残した人（2026-10-11 時点）。
+   外したもの：AID・ノリ（制作に載せる）、名無し、111（本人の希望）。
+   並びは五十音→英字。**順位の順にはしない**（載せる順で上下を付けない）。 */
+const STAFF = [
+  { h: "制作", names: ["AID", "ノリ"] },
+  { h: "音楽", names: ["ワルキューレの騎行"], sub: "作曲　リヒャルト・ワーグナー" },
+  { h: "スペシャルサンクス", names: ["あ", "ゴコウ", "ざわちん", "ほえほえ", "Hey"],
+    tail: "クローズドテストに参加してくださった皆さん" },
+];
+const STAFF_PXS = 42;     // 流れる速さ（px/秒）。名前を1つずつ読み切れる速さ
+const STAFF_FAST = 5;     // 早送りの倍率
+let staffAnim = null;
+let staffFast = false;
+
+/** 中身を組む。**一度組めば足りる**（名前は固定なので、開くたびに作り直さない） */
+function staffBuild() {
+  const roll = $("#staffroll");
+  if (roll.childElementCount) { return; }
+  const add = (parent, tag, cls, text) => {
+    const el = document.createElement(tag);
+    if (cls) { el.className = cls; }
+    if (text) { el.textContent = text; }
+    parent.appendChild(el);
+    return el;
+  };
+  const logo = add(roll, "img");
+  logo.src = "mecha/title/logo1.png";
+  logo.alt = "ROBO SPEED";
+  for (const s of STAFF) {
+    const sec = add(roll, "div", "sec");
+    add(sec, "h3", "", s.h);
+    for (const n of s.names) { add(sec, "div", "nm", n); }
+    if (s.sub) { add(sec, "div", "sub", s.sub); }
+    if (s.tail) { add(sec, "div", "nm tail", s.tail); }
+  }
+  add(roll, "div", "last", "©AID GAMES").id = "stafflast";
+}
+
+/** 流し始める。**シートが出てからでないと高さが測れない**ので、開いたあとに呼ぶ */
+function staffStart() {
+  if (!$("#staff").classList.contains("on")) { return; }   // 絵を待つあいだに閉じられた
+  const win = $("#staffwin"), roll = $("#staffroll"), last = $("#stafflast");
+  if (staffAnim) { staffAnim.cancel(); staffAnim = null; }
+  // 動きを減らす設定の人には流さない。全部を並べて、普通にスクロールで読ませる
+  const still = !roll.animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  $("#staff").classList.toggle("still", still);
+  $("#staffhint").style.display = still ? "none" : "";
+  if (still) { roll.style.transform = ""; win.scrollTop = 0; return; }
+
+  const vh = win.clientHeight;
+  const from = vh;                                                   // 画面の下から入る
+  // 最後の ©AID GAMES が、まん中より少し上で止まる（下の「閉じる」と重ならない）
+  const to = vh * 0.45 - (last.offsetTop + last.offsetHeight / 2);
+  staffAnim = roll.animate(
+    [{ transform: `translateY(${from}px)` }, { transform: `translateY(${to}px)` }],
+    { duration: (from - to) / STAFF_PXS * 1000, easing: "linear", fill: "forwards" });
+  staffAnim.playbackRate = staffFast ? STAFF_FAST : 1;
+  staffAnim.onfinish = () => { $("#staffhint").style.display = "none"; };
+}
+
+function staffOpen() {
+  staffBuild();
+  staffFast = false;
+  $("#staffhint").textContent = "タップで早送り";
+  sheetOpen("#staff");
+  // 流し始めるまでの1コマ、中身が上に出てしまわないよう、先に画面の下へ逃がしておく
+  $("#staffroll").style.transform = "translateY(" + $("#staffwin").clientHeight + "px)";
+  // ロゴの高さが決まらないと、止まる位置がずれる。**絵が来てから測る**
+  const img = $("#staffroll img");
+  if (img.complete) { staffStart(); return; }
+  img.addEventListener("load", staffStart, { once: true });
+  img.addEventListener("error", staffStart, { once: true });
+}
+
+function staffClose() {
+  if (staffAnim) { staffAnim.cancel(); staffAnim = null; }
+  $("#staff").classList.remove("on");
+}
+
+$("#pf_staff").addEventListener("click", staffOpen);
+$("#staffclose").addEventListener("click", staffClose);
+// 流れている画面を押すと、早送りとふつうの速さを行き来する
+$("#staffwin").addEventListener("click", () => {
+  if (!staffAnim || staffAnim.playState === "finished") { return; }
+  staffFast = !staffFast;
+  staffAnim.playbackRate = staffFast ? STAFF_FAST : 1;
+  $("#staffhint").textContent = staffFast ? "タップでふつうの速さ" : "タップで早送り";
+});
 $("#pf_bgm").addEventListener("click", () => {
   bgmOn = !bgmOn; seSave(); paintPrefs(); paintSoundBtn();
   if (bgmOn) { unlockSE(); bgmStart(); } else { bgmStop(true); }
@@ -7756,7 +7903,7 @@ function keepInView(el) {
 }
 
 // 版の表示。読み込まれている版が古いと、直したはずの不具合がそのまま残って見える。
-const BUILD = "2026-09-27a 節目の音を作り直し／走行中は撃破数";
+const BUILD = "2026-10-11a スタッフロール";
 
 load();
 diffLoad();      // 難易度を当てる（9-6k）。**load() の後**でないと調整値に上書きされる
@@ -7977,6 +8124,7 @@ adsInit();
     ["#rankview", () => { $("#rankview").classList.remove("on"); }],
     ["#catalog",  () => { $("#catalog").classList.remove("on"); }],
     ["#howto",    () => { $("#howto").classList.remove("on"); }],
+    ["#staff",    () => { staffClose(); }],                     // 設定の上に重なるので、設定より先に見る
     ["#prefs",    () => { $("#prefs").classList.remove("on"); }],
     ["#settings", () => { $("#settings").classList.remove("on"); }],
     ["#newsview", null],
