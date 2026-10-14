@@ -57,7 +57,15 @@ scratchpad/
 node_modules/
 app/node_modules/
 app/www/
-app/android/
+# app/android は全部無視。ただし手で書き足したものは戻す（2026-10-14）
+#   app/build.gradle … versionCode の履歴（どの番号で何を出したか）と署名の説明
+#   variables.gradle … 対象にする Android の版の指定
+# **作り直せないのはこの2つの中の書き込みだけ。** build/ や .gradle/ は今までどおり入れない。
+app/android/*
+!app/android/variables.gradle
+!app/android/app/
+app/android/app/*
+!app/android/app/build.gradle
 app/ios/
 app/node_modules/
 *.log

@@ -1,0 +1,111 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "jp.aid.robospeed"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "jp.aid.robospeed"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        /* versionCode は **上げないと同じ版として弾かれる**。アップロードのたびに +1。
+           versionName は人が読む名前で、こちらは重複しても構わない。
+             1 (1.0)   … Play 初回。クローズドテスト開始
+             2 (1.0.1) … 名前欄が鍵盤に隠れる件（15-10）＋ はじめての記録（9-6y）
+             3 (1.0.2) … タイトルに版表示（15-11）＋ 図鑑を弱い順（9-6aa）
+                         ＋ 名前が空なら名無し（9-6ab）＋ 保存先の説明（9-6ac）
+             4 (1.0.3) … 10機ごとの注意テープ（9-6ad）
+                         ＋ まとめて倒した回の知らせが消える件（9-6ae）
+             5 (1.0.4) … 連続撃破のほめ言葉（9-6af）
+             6 (1.0.5) … ほめ言葉に声（9-6af）＋ タイトルのお知らせの帯（9-6ag）
+             7 (1.0.6) … 結果画面を畳む・要点を大きく（9-6ah）
+                         ＋ 10機ごとの節目の音（9-6ad）
+             8 (1.0.7) … **中身が古いまま出てしまった版。**
+                         build-www.mjs は app/www までしか作らない。
+                         **npx cap copy android を忘れると、
+                         android/app/src/main/assets/public が前のまま詰まる。**
+                         次から必ず build-www → cap copy → bundleRelease の順。
+             9 (1.0.7) … 8 の中身を入れ直したもの。
+                         節目の音を作り直し（9-6ad）
+                         ＋ 走行中の表示を「◯機撃破」に統一（9-6ai）
+                         **これが製品版の最初の版**（2026-10-13 公開・日本のみ）
+            10 (1.0.8) … スタッフロール（9-6aj）
+                         ＋ お知らせを戻るボタンで閉じられるように（9-6ag） */
+        versionCode 10
+        versionName "1.0.8"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    /* ---- 署名（仕様書 14-5）----
+     *
+     * **パスワードをファイルに書かない。** ここに書くと、
+     * プロジェクトを誰かに渡したとき・バックアップを共有したときに一緒に出ていく。
+     * 鍵そのものもプロジェクトの外（D:\keys）に置いてある。
+     *
+     * 渡しかたは2つ。どちらも **リポジトリには残らない。**
+     *   1. ビルドのたびに手で渡す
+     *        gradlew bundleRelease -PstorePass=xxxx -PkeyPass=xxxx
+     *   2. ホームフォルダの ~/.gradle/gradle.properties に書く（このPCだけに残る）
+     *        ROBOSPEED_STORE_PASS=xxxx
+     *        ROBOSPEED_KEY_PASS=xxxx
+     *
+     * **どちらも無いときは署名の設定ごと作らない。** そうしておけば、
+     * 鍵の無い環境でも assembleDebug は通る（パスワードが無いだけで止まらない）。
+     */
+    signingConfigs {
+        release {
+            def sp = project.findProperty('storePass') ?: project.findProperty('ROBOSPEED_STORE_PASS')
+            def kp = project.findProperty('keyPass')   ?: project.findProperty('ROBOSPEED_KEY_PASS') ?: sp
+            if (sp) {
+                storeFile file(project.findProperty('storeFile') ?: 'D:/keys/robospeed-release.jks')
+                storePassword sp
+                keyAlias project.findProperty('keyAlias') ?: 'robospeed'
+                keyPassword kp
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            /* パスワードが渡されていないときは **署名しない。**
+               黙って壊れた署名を付けるより、署名なしで出て気づくほうが良い。 */
+            if (project.hasProperty('storePass') || project.hasProperty('ROBOSPEED_STORE_PASS')) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
