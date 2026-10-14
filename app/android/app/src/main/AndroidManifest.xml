@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <!-- 盤面は縦持ちで作ってある。**横にすると作業台が入らない。**
+             screenOrientation は属性なので、タグの中にコメントは書けない。
+
+             windowSoftInputMode="adjustResize" は **文字入力のために要る**（仕様書 15-10）。
+             指定が無いと Android は窓を縮めず、鍵盤が中身の上に重なるだけになる。
+             シートは position:fixed; inset:0 で画面いっぱいなので、縮まないと
+             入力欄を上へ逃がす余地が無い。
+             実機報告：「ランキングで名前を入力するとき、画面から消えている位置で
+             入力になっていて、なかなか入力できなかった」（2026-09-10・テスターより）。 -->
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+        <!-- ============================================================
+             AdMob のアプリID（14-3）
+             ============================================================
+             **これが無いと、起動した瞬間に落ちる。** 広告SDKが最初に読む値で、
+             欠けていると初期化で例外を投げてアプリごと終わる。
+
+             ★2026-09-09 本物のアプリIDを入れた（AdMob の「アプリの設定」で発行）。
+               このIDは APK の中に入って公開されるもので、**秘密ではない。**
+               広告ユニットIDも同じで、パスワードの類ではない。
+
+             **広告ユニットのほうは、開発中はテスト用を使うこと。**
+             本物のユニットIDで自分で叩くと「無効なトラフィック」と見なされ、
+             アカウントが止まる。切り替えは playtest.html の
+             AD_UNIT_BANNER と AD_TESTING で行う。
+             ============================================================ -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-2313067186861650~1860567458" />
+
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>
