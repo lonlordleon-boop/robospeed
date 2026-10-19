@@ -8016,6 +8016,47 @@ $e = $z.Entries | Where-Object { $_.FullName -eq 'base/assets/public/index.html'
 毎回うまくいっていたのは、続けて作業していて ② が記憶に残っていたから。
 **間が空くと落ちる。** だからここに置く。
 
+### 15-13. iPhone 版 ★2026-10-19 着手
+
+**手順は `app/iOS版の手順.md`。** Mac で作業するときはそちらを読む。ここには決めたことと理由だけ置く。
+
+#### 同じ playtest.html から作る。違いは `platform()` で分ける（★v1.13p）
+
+`Capacitor.getPlatform()` が返す `"android"` ／ `"ios"` ／ `"web"` で、次の3つだけを切り替える。
+**ゲームの中身・調整は一切分けない。**
+
+| 項目 | Android ／ ブラウザ | iPhone |
+|---|---|---|
+| 広告ユニット | `AD_UNIT_RESULT` ／ `AD_UNIT_PAUSE` | `AD_UNIT_RESULT_IOS` ／ `AD_UNIT_PAUSE_IOS` |
+| テスト用の広告ユニット | `…/6300978111`（Android のバナー） | `…/2934735716`（iOS のバナー） |
+| お知らせの更新ボタン | 「Play ストアで更新する」→ Google Play | 「App Store で更新する」→ `apps.apple.com/jp/app/id6824338951` |
+| 図鑑の保存先の説明 | 「削除したり、データを消去したりすると失われます」 | 「アプリを削除すると失われます」（iPhone にはアプリごとのデータ消去が無い） |
+
+**番号が空なら、iPhone では広告を頼まない・更新ボタンを出さない。**
+プラグインは広告の番号が無いと Google のテスト用の番号に置き換える作りなので、本番でテスト広告が出かねないため。
+
+ブラウザで `self.Capacitor` を差し替えて Android ／ iPhone のふりをさせ、
+どの場面で何の番号を頼み、どこを開くかを確かめた（2026-10-19）。
+
+#### Apple と AdMob の番号
+
+| 何 | 値 |
+|---|---|
+| バンドルID | `jp.aid.robospeed`（Android と同じ） |
+| App Store Connect の Apple ID | `6824338951`（SKU `robospeed-ios`） |
+| AdMob の iOS アプリID | `ca-app-pub-2313067186861650~5617404084`（**Info.plist の `GADApplicationIdentifier`**） |
+| AdMob の広告ユニット | 結果画面 `…/2991240743`、一時停止 `…/9476013186` |
+
+AdMob は Android と**同じアカウントに、別のアプリとして**足した。app-ads.txt はアカウントの番号なので書き足さない。
+
+#### 決めたこと
+
+- **配信は日本だけ。** 個人で出すと販売元に本名が出る（避けられない）。EU に出すと住所と電話番号も公開になるので出さない
+- **iPhone だけ・縦だけ。** iPad を対象にすると iPad の画面写真も要る
+- **追跡の許可（ATT）はまず聞かない。** 聞かなくても広告は出る（本人に合わせない広告になるだけ）
+- アイコンは Android と同じ絵（`app/store/ios_icon_1024.png`、`make-icons.ps1` と同じ切り出し・地色・72%）。
+  **Apple は透明の情報を持つ絵を受け付けない**ので、24bit（透明なし）で作った
+
 ---
 
 ## 参考リンク

@@ -3578,6 +3578,16 @@ const NEWS_SEEN_KEY = "robospeed.news.seen.v1";
 /* ストアの住所。**クローズドテストの人も、ここからそのまま更新できる。**
    アプリの中では Play ストアのアプリが開き、ブラウザではウェブの頁が開く。 */
 const NEWS_STORE_URL = "https://play.google.com/store/apps/details?id=jp.aid.robospeed";
+/* iPhone のときの行き先（★v1.13p）。**App Store Connect でアプリを作ると、数字の Apple ID が決まる。**
+   決まったら https://apps.apple.com/jp/app/id数字 の形で入れる。
+   **空のあいだは、iPhone では更新ボタンを出さない**（行き先の無いボタンを押させない）。 */
+const NEWS_STORE_URL_IOS = "https://apps.apple.com/jp/app/id6824338951";   // 2026-10-19 App Store Connect で作成
+/* **App Store で公開されるまでは、この住所を開いても「見つかりません」になる。**
+   ボタンが出るのは「自分より新しい版のお知らせ」があるときだけなので、公開前にお知らせを出さなければ困らない。 */
+/** いま動いている場所のストア。iPhone なら App Store、それ以外は Google Play。 */
+function newsStoreUrl() {
+  return platform() === "ios" ? NEWS_STORE_URL_IOS : NEWS_STORE_URL;
+}
 let NEWS = null;
 
 function newsSeenGet() {
@@ -3622,7 +3632,9 @@ function newsOpen() {
   $("#newsvtitle").textContent = NEWS.title;
   $("#newsvat").textContent = NEWS.at ? (NEWS.at + " のお知らせ") : "";
   $("#newsbody").textContent = NEWS.body;
-  $("#newsuprow").style.display = newsIsNewer(NEWS.ver) ? "" : "none";
+  // 行き先の決まっていないストア（iPhone 版の公開前）では出さない（★v1.13p）
+  $("#newsuprow").style.display = (newsIsNewer(NEWS.ver) && newsStoreUrl()) ? "" : "none";
+  $("#newsupdate").textContent = platform() === "ios" ? "App Store で更新する" : "Play ストアで更新する";
   newsSeenSet(NEWS.id);
   newsPaintBar();
   sheetOpen("#newsview");
@@ -6725,6 +6737,13 @@ function isApp() {
   return !!(C && typeof C.isNativePlatform === "function" && C.isNativePlatform());
 }
 
+/** 動いている場所。"android" ／ "ios" ／ "web"（★v1.13p・iPhone 版の準備）。
+ *  広告の番号・ストアの行き先・説明の文が、Android と iPhone で違うため。 */
+function platform() {
+  const C = self.Capacitor;
+  return (C && typeof C.getPlatform === "function") ? C.getPlatform() : "web";
+}
+
 /**
  * 記録がどこに残るかの一文（★v1.13g・テスターの報告）。
  *
@@ -6736,6 +6755,8 @@ function isApp() {
  * 更新では消えない（署名が変わらないので引き継がれる・15-5）。
  */
 function storageNote() {
+  // iPhone にはアプリごとの「データ消去」が無い。**無い操作を書かない**（★v1.13p）
+  if (platform() === "ios") { return "記録はこの端末に保存されます。アプリを削除すると失われます。"; }
   return isApp()
     ? "記録はこの端末に保存されます。アプリを削除したり、アプリのデータを消去したりすると失われます。"
     : "この版はブラウザに保存するため、サイトデータを消すと失われます。";
@@ -7497,7 +7518,8 @@ $("#newsbar").addEventListener("click", newsOpen);
 $("#newsclose").addEventListener("click", () => { $("#newsview").classList.remove("on"); });
 $("#newsupdate").addEventListener("click", () => {
   // **同じ窓で開かない。** アプリの中だと、ゲームがストアに置き換わって戻れなくなる。
-  window.open(NEWS_STORE_URL, "_blank", "noopener");
+  const url = newsStoreUrl();
+  if (url) { window.open(url, "_blank", "noopener"); }
 });
 
 /**
@@ -8047,7 +8069,22 @@ const AD_UNIT_TEST   = "ca-app-pub-3940256099942544/6300978111";       // Google
 const AD_UNIT_RESULT = "ca-app-pub-2313067186861650/8641598226";       // 結果画面
 const AD_UNIT_PAUSE  = "ca-app-pub-2313067186861650/6921322445";       // 一時停止
 
+/* ---- iPhone 版の広告（★v1.13p）----
+   **AdMob では Android と iPhone は別のアプリ。** 広告ユニットも別に作る（同じアカウントの中で）。
+   テスト用の番号も Google が OS ごとに分けて出している。
+   **空のあいだは、iPhone では広告を出さない**（adsSync で止める）。 */
+const AD_UNIT_TEST_IOS   = "ca-app-pub-3940256099942544/2934735716";   // Google 公式のテスト用（iOS のバナー）
+const AD_UNIT_RESULT_IOS = "ca-app-pub-2313067186861650/2991240743";   // 結果画面（2026-10-19 作成）
+const AD_UNIT_PAUSE_IOS  = "ca-app-pub-2313067186861650/9476013186";   // 一時停止（2026-10-19 作成）
+/* iOS のアプリIDは ca-app-pub-2313067186861650~5617404084。
+   **ここではなく、Mac で作る app/ios/App/App/Info.plist の GADApplicationIdentifier に入れる。**
+   （Android の AndroidManifest.xml の APPLICATION_ID に当たるもの。入れ忘れるとアプリが起動直後に落ちる） */
+
 function adUnitFor(kind) {
+  if (platform() === "ios") {
+    if (AD_TESTING) { return AD_UNIT_TEST_IOS; }
+    return kind === "paused" ? AD_UNIT_PAUSE_IOS : AD_UNIT_RESULT_IOS;
+  }
   if (AD_TESTING) { return AD_UNIT_TEST; }
   return kind === "paused" ? AD_UNIT_PAUSE : AD_UNIT_RESULT;
 }
@@ -8092,7 +8129,10 @@ function adsWanted() {
  * 同じなら何もしない。違えば引っ込めてから出し直す。
  */
 function adsSync() {
-  const want = (ADS.plugin && ADS.ready) ? adsWanted() : null;
+  let want = (ADS.plugin && ADS.ready) ? adsWanted() : null;
+  // 番号の入っていない場所（iPhone 版の準備中）では頼まない。プラグインは番号が無いと
+  // **Google のテスト用の番号に置き換える**作りなので、本番でテスト広告が出かねない（★v1.13p）
+  if (want && !adUnitFor(want)) { want = null; }
   if (want === ADS.kind) { return; }
 
   if (ADS.kind) { ADS.plugin.removeBanner().catch(() => {}); }
