@@ -354,6 +354,12 @@ body.nogamebg #gamebg { display: none; }
 /* セルは行の高さいっぱいに伸び、幅は絵の縦横比から決まる */
 .cell { flex: 0 0 auto; height: auto; }
 .cell { position: relative; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+/* ---- iPhone（WebKit）で部品が原寸で描かれていた ★2026-10-19 ----
+   Chrome は「行に引き伸ばされた高さ × aspect-ratio」で幅を出してくれるが、
+   **WebKit は引き伸ばしの高さを aspect-ratio に使わない。** 幅が中の絵の原寸で決まり、
+   iPhone で頭が小さく脚が枠からはみ出した（空きの枠は幅0で細い線に潰れた）。
+   高さを 100% と **はっきり書く** と、WebKit でも高さから幅が決まる。 */
+.figrow > .cell { height: 100%; }
 /* 空きスロットは **控えめに。** 主役は装着済みの部品であって、空欄ではない。
 
    マットに **刷ってある置き場所** に見せる（点線の「未入力欄」ではなく）。
@@ -364,7 +370,9 @@ body.nogamebg #gamebg { display: none; }
   background: rgba(255,255,255,.022);
   box-shadow: inset 0 1px 2px rgba(0,0,0,.22);
 }
-.cell img { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* 絵は **セルの大きさを決める側に回さない**（position: absolute）。
+   流れの中に置くと、WebKit では絵の原寸がセルの幅を押し広げる（上の ★2026-10-19）。 */
+.cell img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
 .cell.mirror img { transform: scaleX(-1); }
 .cell.mirror .tint { transform: scaleX(-1); }
 
@@ -7926,7 +7934,7 @@ function keepInView(el) {
 }
 
 // 版の表示。読み込まれている版が古いと、直したはずの不具合がそのまま残って見える。
-const BUILD = "2026-10-14a スタッフロール／お知らせの戻るボタン";
+const BUILD = "2026-10-19a iPhone で作業台の部品が原寸になるのを直す";
 
 load();
 diffLoad();      // 難易度を当てる（9-6k）。**load() の後**でないと調整値に上書きされる
