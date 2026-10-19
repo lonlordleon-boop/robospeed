@@ -2320,6 +2320,12 @@ body.demo #demotag { display: block; }
       </div>
     </div>
 
+    <!-- iPhone だけに出す一言（★v1.13p・15-13）。
+         iPhone の WebView は、消音モードのとき Web Audio を鳴らさない（効果音・BGM・ほめ言葉の声が全部止まる）。
+         **消音でも鳴らす作りにはしない**（ゲームを開くと、ほかのアプリの音楽が止まるため。本人と決めた・2026-10-19）。
+         代わりに、音が出ない理由をここで伝える。Android とブラウザでは出さない。 -->
+    <p class="note" id="hw_ios_mute" style="display:none">iPhone は、消音モードにしていると音が出ません。音を出したいときは、消音モードを切ってください。</p>
+
     <div class="btnrow">
       <button class="btn plate" id="h_close"><span>閉じる</span></button>
     </div>
@@ -7539,6 +7545,8 @@ $("#newsupdate").addEventListener("click", () => {
 function openHowto() {
   $("#howGo").src   = "mecha/card/sym_go.png"   + ASSET_V;
   $("#howOver").src = "mecha/card/sym_over.png" + ASSET_V;
+  // 消音モードの一言は iPhone だけ（★v1.13p）
+  $("#hw_ios_mute").style.display = platform() === "ios" ? "" : "none";
   sheetOpen("#howto");
 }
 $("#gohow").addEventListener("click", openHowto);
@@ -7934,7 +7942,7 @@ function keepInView(el) {
 }
 
 // 版の表示。読み込まれている版が古いと、直したはずの不具合がそのまま残って見える。
-const BUILD = "2026-10-19a iPhone で作業台の部品が原寸になるのを直す";
+const BUILD = "2026-10-19b 遊び方に iPhone の消音モードの一言";
 
 load();
 diffLoad();      // 難易度を当てる（9-6k）。**load() の後**でないと調整値に上書きされる
