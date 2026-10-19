@@ -183,3 +183,79 @@ Xcode で **Build を +1** して Archive → Upload。
 
 - Mac で直したもの（`app/ios` は git に入らない）の中で、**手で書き足した設定**（Info.plist など）は、ここの手順書に書き足しておく。Mac が壊れたときに作り直せるように
 - 仕様書 `docs/GAME_SPEC.md` の 15-13 に、やったことと分かったことを足す
+
+---
+
+## 8. Mac で手で入れた設定（2026-10-19 の記録）
+
+`app/ios` は git に入らないので、**Mac が壊れたら全部消える。** 作り直すときは、ここに書いたとおりに入れ直す。
+リポジトリの場所は `~/Documents/robospeed`（3-1 の `~/robospeed` とは違った）。
+`app/ios` は 2026-09-24 に作られたものがすでにあったので、作り直していない。
+
+### 8-1. Info.plist（`app/ios/App/App/Info.plist`）
+
+| キー | 入れた値 | メモ |
+|---|---|---|
+| `GADApplicationIdentifier` | `ca-app-pub-2313067186861650~5617404084` | 新しく足した |
+| `SKAdNetworkItems` | `cstr6suwn9.skadnetwork` の1件だけ | 新しく足した。Google の案内の全部はまだ入れていない |
+| `ITSAppUsesNonExemptEncryption` | `NO`（Boolean） | 新しく足した |
+| `CFBundleDisplayName` | `ROBO SPEED` | **最初から入っていた**（`npx cap add ios` が入れる） |
+| `UISupportedInterfaceOrientations` | `UIInterfaceOrientationPortrait` の1つだけ | 横向き2つを消した（縦固定） |
+
+さわっていないもの：
+- `NSUserTrackingUsageDescription` は入れていない（3-4 のとおり）
+- `UISupportedInterfaceOrientations~ipad` は残したまま（iPhone だけにしたので使われない）
+- `UIRequiredDeviceCapabilities` の `armv7` は、Capacitor が作ったまま残してある。アップロードで何か言われたら、ここを `arm64` にする
+
+入れ直すときは、`app/ios/App/App` の中で次を打てば同じになる（Xcode の画面で入れてもよい）：
+
+```bash
+/usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string ca-app-pub-2313067186861650~5617404084" Info.plist
+/usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems array" -c "Add :SKAdNetworkItems:0 dict" -c "Add :SKAdNetworkItems:0:SKAdNetworkIdentifier string cstr6suwn9.skadnetwork" Info.plist
+/usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" Info.plist
+/usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" -c "Add :UISupportedInterfaceOrientations array" -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" Info.plist
+```
+
+### 8-2. Xcode の設定（`app/ios/App/App.xcodeproj/project.pbxproj`）
+
+Debug と Release の両方に入っている。Xcode の画面（3-5）で入れるのと同じ中身。
+
+| 設定 | 値 | メモ |
+|---|---|---|
+| `DEVELOPMENT_TEAM` | `35N4AM2XQ7` | 新しく足した（Signing の Team） |
+| `CODE_SIGN_STYLE` | `Automatic` | 最初から |
+| `PRODUCT_BUNDLE_IDENTIFIER` | `jp.aid.robospeed` | 最初から |
+| `MARKETING_VERSION` | `1.0.8` | `1.0` から直した（Version） |
+| `CURRENT_PROJECT_VERSION` | `1` | 最初から（Build。上げるたびに +1） |
+| `TARGETED_DEVICE_FAMILY` | `1` | `"1,2"` から直した（iPhone だけ。iPad を外した） |
+
+### 8-3. アイコン
+
+`app/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` を、
+`app/store/ios_icon_1024.png` で上書きした（最初は Capacitor の青い「×」の仮の絵だった）。ファイル名はそのまま。
+
+### 8-4. 実機で動かすまでにつまずいたところ
+
+- **Xcode に Apple ID を入れる場所：** Xcode 27 では「Xcode」→「Settings…」→「**Apple Accounts**」→ 右の「**Sign In…**」。左下の「＋」は無い
+- 🍎 の右が「Claude」のままだと、Xcode のメニューが出ない。Dock の青い金づちを押して Xcode を前に出す
+- **デベロッパモードは、オン → 再起動 → 「オンにする」を押してパスコード** まで済ませないと効かない
+- 初めての iPhone は、開発者アカウントへの登録が要る。Xcode の ▶ なら自動。コマンドで組み立てるときは `-allowProvisioningDeviceRegistration` を付ける
+- シミュレータは「CoreSimulator is out of date」で使えなかった（実機には関係ない）
+
+コマンドで組み立てて iPhone に入れるとき（Xcode の ▶ と同じ）：
+
+```bash
+cd ~/Documents/robospeed/app/ios/App
+xcrun devicectl list devices
+xcodebuild -project App.xcodeproj -scheme App -configuration Debug -destination 'id=<iPhone の番号>' -derivedDataPath /tmp/rsdd -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+xcrun devicectl device install app --device <iPhone の番号> /tmp/rsdd/Build/Products/Debug-iphoneos/App.app
+xcrun devicectl device process launch --terminate-existing --device <iPhone の番号> jp.aid.robospeed
+```
+
+`<iPhone の番号>` は、`xcrun devicectl list devices` で出る Identifier。
+
+### 8-5. 実機で分かったこと
+
+- **音が出ないときは、まず消音モード。** 効果音・BGM・ほめ言葉の声は全部 Web Audio で鳴らしていて、iPhone では消音モードのとき Web Audio は鳴らない（動画の音は鳴る）。iPhone 16 は消音スイッチが無く、アクションボタンかコントロールセンターの🔔で切り替わる。**消音中でも鳴らすかどうかは、まだ決めていない**（鳴らすようにすると、ゲーム中はほかのアプリの音楽が止まる）
+- **作業台の部品が原寸で描かれて、はみ出した。** WebKit の作りの違い。`docs/playtest.html` を直して main に入れた（BUILD `2026-10-19a`）
+- **Mac で iPhone と同じ見た目を確かめられる。** Mac の WKWebView は iPhone と同じ WebKit。作業台の崩れは Mac でも同じように出た
