@@ -3,7 +3,7 @@
 > Android 用の `listing.md` / `data-safety.md` / `content-rating.md` と**食い違わないように**作った。
 > 書いてあることは全部、実物で確かめた事実。**盛らない。**（2026-10-19）
 >
-> App Store Connect の「ROBO SPEED」→ 左の「iOS アプリ 1.0.8」などに入れる。
+> App Store Connect の「ROBO SPEED」→ 左の「iOS アプリ 1.0.9」などに入れる。
 
 ---
 
@@ -109,7 +109,7 @@ ROBO SPEED
 | カテゴリ | プライマリ：**ゲーム**（サブカテゴリ：**カード**、**パズル**）。セカンダリは空でよい |
 | 価格 | **無料** |
 | 配信する国 | **日本だけ**（EU に出すと住所・電話番号の公開を求められる） |
-| バージョン | **1.0.8**（Xcode の Version と同じにする。App Store Connect は最初「1.0」で作られている） |
+| バージョン | **1.0.9**（Xcode の Version と同じにする。Android も 1.0.9。App Store Connect は最初「1.0」で作られている） |
 
 ---
 
