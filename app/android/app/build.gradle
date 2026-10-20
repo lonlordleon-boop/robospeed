@@ -29,9 +29,12 @@ android {
                          ＋ 走行中の表示を「◯機撃破」に統一（9-6ai）
                          **これが製品版の最初の版**（2026-10-13 公開・日本のみ）
             10 (1.0.8) … スタッフロール（9-6aj）
-                         ＋ お知らせを戻るボタンで閉じられるように（9-6ag） */
-        versionCode 10
-        versionName "1.0.8"
+                         ＋ お知らせを戻るボタンで閉じられるように（9-6ag）
+            11 (1.0.9) … 結果画面の作る側向けのメモ（「続ける？」で広告…）を消す
+                         ＋ iPhone 版の準備（Android の動きは変わらない・15-13）
+                         ＋ iPhone で見つけた作業台の崩れの直し（Android の見た目は変わらない） */
+        versionCode 11
+        versionName "1.0.9"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

@@ -1369,6 +1369,8 @@ body.native .adslot { display: none; }
 .sheet .inner { max-width: 640px; margin: 0 auto; }
 .sheet h2 { font-size: 16px; margin: 0 0 2px; }
 .sheet p.note { font-size: 12px; color: var(--muted); margin: 0 0 12px; line-height: 1.6; }
+/* 結果の一言が空のときは、下の余白ごと消す（★v1.13q）。空の段落に 12px の隙間だけ残さない */
+#resultnote:empty { display: none; }
 /* シートの中のリンク。**ここまで一度も使っていなかった**ので、素のままだと
    ブラウザ既定の青紫が出て浮く。設定のプライバシーポリシーで初めて使う（★v1.13b）。 */
 .sheet a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
@@ -6633,10 +6635,15 @@ function showResult() {
     $("#resulttitle").textContent = M.cleared
       ? ("全 " + MAX_STAGE + " ステージ 制覇")
       : (M.kills + " 機 撃破");
+    /* 最終ステージに届かなかった走りでは **何も書かない**（★v1.13q・2026-10-20）。
+       ここにはずっと「ここが『続ける？』で広告を出す瞬間になります。どこまで行けたかを控えてください。」
+       という **作る側向けのメモ** が出ていた。「続ける？」の仕組みは作っておらず、
+       公開版の Android でも遊んだ人全員に見えていた（App Store の画面写真で気づいた）。
+       結果画面は「要点を大きく、すぐ次へ」（9-6ah）なので、説明の文は要らない。 */
     $("#resultnote").textContent = M.cleared
       ? ("最終ステージに到達しました。ここが上限です。"
          + "同じ " + MAX_STAGE + " 機どうしの順位は、組み立ての速い順で決まります。")
-      : "ここが「続ける？」で広告を出す瞬間になります。どこまで行けたかを控えてください。";
+      : "";
   } else {
     const won = M.cpu.hp <= 0 && M.me.hp > 0;
     const timeout = M.me.hp > 0 && M.cpu.hp > 0;
@@ -7942,7 +7949,7 @@ function keepInView(el) {
 }
 
 // 版の表示。読み込まれている版が古いと、直したはずの不具合がそのまま残って見える。
-const BUILD = "2026-10-19b 遊び方に iPhone の消音モードの一言";
+const BUILD = "2026-10-20a 結果画面の作る側向けのメモを消す";
 
 load();
 diffLoad();      // 難易度を当てる（9-6k）。**load() の後**でないと調整値に上書きされる
