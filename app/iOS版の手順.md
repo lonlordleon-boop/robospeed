@@ -89,8 +89,16 @@ npx cap sync ios
 | `ITSAppUsesNonExemptEncryption` | `NO`（Boolean） | 暗号は HTTPS だけ。毎回の「輸出の質問」を省ける |
 | `CFBundleDisplayName` | `ROBO SPEED` | ホーム画面に出る名前 |
 
-**`NSUserTrackingUsageDescription`（追跡の許可を聞く画面）は、まず入れない。**
-入れると「追跡を許可しますか」を出す作りが要る。出さなければ広告は「本人に合わせない広告」になるだけで、出ることは出る。
+~~**`NSUserTrackingUsageDescription`（追跡の許可を聞く画面）は、まず入れない。**~~
+~~入れると「追跡を許可しますか」を出す作りが要る。出さなければ広告は「本人に合わせない広告」になるだけで、出ることは出る。~~
+
+**2026-10-20 に入れることにした。** AdMob が「デバイス ID をトラッキングに使う」と申告していて
+（`app/store/privacy-report.md`）、そう申告するアプリは許可の画面で聞かないと審査で止められることがあるため。
+ゲーム側（`docs/playtest.html` の `adsAskTracking`）は、iPhone のときだけ起動してすぐに1回聞く。
+
+| キー | 値 | なぜ |
+|---|---|---|
+| `NSUserTrackingUsageDescription` | `広告を、あなたに合った内容にするために使います。許可しなくても、ゲームはすべて遊べます。` | 許可の画面に出る文。**無いと、聞いた瞬間に落ちる** |
 
 ### 3-5. Xcode の設定
 
@@ -201,9 +209,9 @@ Xcode で **Build を +1** して Archive → Upload。
 | `ITSAppUsesNonExemptEncryption` | `NO`（Boolean） | 新しく足した |
 | `CFBundleDisplayName` | `ROBO SPEED` | **最初から入っていた**（`npx cap add ios` が入れる） |
 | `UISupportedInterfaceOrientations` | `UIInterfaceOrientationPortrait` の1つだけ | 横向き2つを消した（縦固定） |
+| `NSUserTrackingUsageDescription` | `広告を、あなたに合った内容にするために使います。許可しなくても、ゲームはすべて遊べます。` | 2026-10-20 に足した（追跡の許可の画面・3-4） |
 
 さわっていないもの：
-- `NSUserTrackingUsageDescription` は入れていない（3-4 のとおり）
 - `UISupportedInterfaceOrientations~ipad` は残したまま（iPhone だけにしたので使われない）
 - `UIRequiredDeviceCapabilities` の `armv7` は、Capacitor が作ったまま残してある。アップロードで何か言われたら、ここを `arm64` にする
 
@@ -213,6 +221,7 @@ Xcode で **Build を +1** して Archive → Upload。
 /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string ca-app-pub-2313067186861650~5617404084" Info.plist
 /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems array" -c "Add :SKAdNetworkItems:0 dict" -c "Add :SKAdNetworkItems:0:SKAdNetworkIdentifier string cstr6suwn9.skadnetwork" Info.plist
 /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" Info.plist
+/usr/libexec/PlistBuddy -c "Add :NSUserTrackingUsageDescription string 広告を、あなたに合った内容にするために使います。許可しなくても、ゲームはすべて遊べます。" Info.plist
 /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" -c "Add :UISupportedInterfaceOrientations array" -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" Info.plist
 ```
 
@@ -226,7 +235,7 @@ Debug と Release の両方に入っている。Xcode の画面（3-5）で入�
 | `CODE_SIGN_STYLE` | `Automatic` | 最初から |
 | `PRODUCT_BUNDLE_IDENTIFIER` | `jp.aid.robospeed` | 最初から |
 | `MARKETING_VERSION` | `1.0.9` | `1.0` → `1.0.8` → `1.0.9`（2026-10-20・Android の 1.0.9 に合わせた） |
-| `CURRENT_PROJECT_VERSION` | `1` | 最初から（Build。上げるたびに +1） |
+| `CURRENT_PROJECT_VERSION` | `2` | Build。上げるたびに +1。Build 1 は 2026-10-20 にアップロード済み（許可の画面なし・審査には出さない）。Build 2 で許可の画面を入れた |
 | `TARGETED_DEVICE_FAMILY` | `1` | `"1,2"` から直した（iPhone だけ。iPad を外した） |
 
 ### 8-3. アイコン

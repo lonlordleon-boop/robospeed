@@ -76,6 +76,13 @@ Xcode の「Generate Privacy Report」が PDF にまとめるのと同じ中身�
 （`@capacitor-community/admob` の `requestTrackingAuthorization`）で作るので、新しいパッケージは入れない。
 **アップロード済みの Build 1 にはこの画面が入っていない。審査には、入れたあとの Build で出す。**
 
+- 許可を聞く理由の文（Info.plist の `NSUserTrackingUsageDescription`）：
+  **「広告を、あなたに合った内容にするために使います。許可しなくても、ゲームはすべて遊べます。」**
+- 入れた版：ゲーム `2026-10-20b`、iPhone 版 1.0.9 の **Build 2**
+- 実機（iPhone 16）で画面が出ることを確かめた（2026-10-20）。
+  iPhone の「設定」→「プライバシーとセキュリティ」→「トラッキング」→「App からのトラッキング要求を許可」が
+  オフだと、聞く前から「許可しない」になり、画面は出ない
+
 以下は決める前に書いた比べ：
 
 AdMob は、デバイス ID を **トラッキングに使う**と申告している（広告の識別子 IDFA のこと）。

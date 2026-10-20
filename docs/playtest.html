@@ -7949,7 +7949,7 @@ function keepInView(el) {
 }
 
 // 版の表示。読み込まれている版が古いと、直したはずの不具合がそのまま残って見える。
-const BUILD = "2026-10-20a 結果画面の作る側向けのメモを消す";
+const BUILD = "2026-10-20b iPhone で追跡の許可を聞く（ATT）";
 
 load();
 diffLoad();      // 難易度を当てる（9-6k）。**load() の後**でないと調整値に上書きされる
@@ -8121,9 +8121,49 @@ function adsInit() {
      これで開発用の点線枠を消す（14-3）。 */
   document.body.classList.add("native");
   ADS.plugin = p;
-  p.initialize({ initializeForTesting: AD_TESTING })
+  const start = () => p.initialize({ initializeForTesting: AD_TESTING })
     .then(() => { ADS.ready = true; })
     .catch(() => { ADS.plugin = null; });     // 初期化に失敗しても遊べる
+  if (platform() === "ios") { adsAskTracking(p).then(start); } else { start(); }
+}
+
+/* ---- 追跡の許可（iPhone だけ・★2026-10-20）----
+   AdMob は iPhone で「デバイス ID をトラッキングに使う」と申告している
+   （app/store/privacy-report.md）。そう申告するアプリは、**Apple の許可の画面（ATT）で
+   本人に聞かなければならない。** 聞かずに出すと審査で止められることがある。
+
+   **起動してすぐ、広告を始める前に1回だけ聞く。** 答えは iPhone が覚えるので、
+   2回目からは画面は出ない（設定アプリから変えられる）。
+   許可しなくても広告は出る（本人に合わせない広告になるだけ）。ゲームは何も変わらない。
+
+   文言は Mac で作る Info.plist の NSUserTrackingUsageDescription に入れる
+   （無いと、聞いた瞬間にアプリが落ちる）。
+
+   アプリが前に出きる前に聞くと、iPhone は画面を出さずに黙って返す。
+   見えている状態になってから、少し置いて聞く。
+
+   **画面が出ないときは、まず iPhone の設定を見る。** 「設定」→「プライバシーとセキュリティ」→
+   「トラッキング」→「App からのトラッキング要求を許可」がオフだと、一度も聞いていなくても
+   最初から denied が返り、画面は出ない（2026-10-20 の実機で、これだった）。 */
+function adsAskTracking(p) {
+  if (!p.trackingAuthorizationStatus || !p.requestTrackingAuthorization) { return Promise.resolve(); }
+  const visible = () => new Promise((ok) => {
+    if (document.visibilityState === "visible") { ok(); return; }
+    const on = () => {
+      if (document.visibilityState !== "visible") { return; }
+      document.removeEventListener("visibilitychange", on);
+      ok();
+    };
+    document.addEventListener("visibilitychange", on);
+  });
+  return p.trackingAuthorizationStatus()
+    .then((r) => {
+      if (!r || r.status !== "notDetermined") { return; }   // もう答えている
+      return visible()
+        .then(() => new Promise((ok) => setTimeout(ok, 600)))
+        .then(() => p.requestTrackingAuthorization());
+    })
+    .catch(() => {});                         // 聞けなくても広告とゲームは続ける
 }
 
 /**
