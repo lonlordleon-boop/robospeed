@@ -103,12 +103,12 @@ App の TARGETS →
 | タブ | 設定 |
 |---|---|
 | Signing & Capabilities | **Automatically manage signing** にチェック、Team は本人のチーム（`35N4AM2XQ7`） |
-| General → Identity | Bundle Identifier `jp.aid.robospeed`、Version は `1.0.8`（Android と合わせる）、Build は `1`（上げるたびに +1） |
+| General → Identity | Bundle Identifier `jp.aid.robospeed`、Version は `1.0.9`（Android と合わせる）、Build は `1`（上げるたびに +1） |
 | General → Supported Destinations | **iPhone だけ**にする（iPad を外す）。iPad を残すと iPad の画面写真まで求められる |
 | General → Deployment Info | 画面の向きは **Portrait だけ**（Android も縦固定） |
 | Assets → AppIcon | `app/store/ios_icon_1024.png` を 1024 の枠に入れる |
 
-App Store Connect のバージョンは「1.0」で作られている。**Xcode の Version と同じ数字にそろえる**（App Store Connect の画面で 1.0 → 1.0.8 に直す）。
+App Store Connect のバージョンは「1.0」で作られている。**Xcode の Version と同じ数字にそろえる**（App Store Connect の画面で 1.0 → 1.0.9 に直す）。
 
 ---
 
@@ -225,7 +225,7 @@ Debug と Release の両方に入っている。Xcode の画面（3-5）で入�
 | `DEVELOPMENT_TEAM` | `35N4AM2XQ7` | 新しく足した（Signing の Team） |
 | `CODE_SIGN_STYLE` | `Automatic` | 最初から |
 | `PRODUCT_BUNDLE_IDENTIFIER` | `jp.aid.robospeed` | 最初から |
-| `MARKETING_VERSION` | `1.0.8` | `1.0` から直した（Version） |
+| `MARKETING_VERSION` | `1.0.9` | `1.0` → `1.0.8` → `1.0.9`（2026-10-20・Android の 1.0.9 に合わせた） |
 | `CURRENT_PROJECT_VERSION` | `1` | 最初から（Build。上げるたびに +1） |
 | `TARGETED_DEVICE_FAMILY` | `1` | `"1,2"` から直した（iPhone だけ。iPad を外した） |
 
