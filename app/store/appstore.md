@@ -157,6 +157,10 @@ Android の `content-rating.md` と同じ考えで答える。
 
 ### 3-2. AdMob のぶん — **Xcode のプライバシーレポートを見て決める**
 
+> **決まった（2026-10-20）。App Store Connect に入れる答えは `privacy-report.md` の3章の表をそのまま使う。**
+> AdMob は「デバイス ID をトラッキングに使う」と申告していたので、iPhone 版は**起動時に追跡の許可（ATT）を聞く**作りにした（Build 2）。
+> 以下は決める前に書いたもの。
+
 Google の案内で分かっているのは、AdMob が集める**種類**だけ。
 
 | Apple の分類 | 何か |

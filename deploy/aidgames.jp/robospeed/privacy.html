@@ -19,6 +19,11 @@
     「Android アプリ」を「Android 版・iPhone 版」に。広告の項に iPhone の説明を足した。
     App Store の「App のプライバシー」の申告（app/store/appstore.md の3章）とも一致させること。
 
+  ■ iPhone で追跡の許可を聞くようにしたとき（2026-10-20 改定）
+    AdMob が「デバイス ID をトラッキングに使う」と申告していたため（app/store/privacy-report.md）、
+    iPhone 版は起動時に ATT の画面で許可を聞く作りにした（ゲーム 2026-10-20b・iPhone 版 Build 2）。
+    前の版の「許可を求めません／IDFA は渡されません」は事実でなくなったので書き換えた。
+
   ■ 書くときの原則
     **コードで確かめたことだけを書く。** 一般的な雛形を貼らない。
     ここに書いた内容は Play の「データ セーフティ」の申告と
@@ -62,7 +67,7 @@
 <body>
 
 <h1>プライバシーポリシー</h1>
-<p class="date">ROBO SPEED（ロボ・スピード）／ AID GAMES<br>制定日：2026年9月9日<br>改定日：2026年10月19日（iPhone 版を追加）</p>
+<p class="date">ROBO SPEED（ロボ・スピード）／ AID GAMES<br>制定日：2026年9月9日<br>改定日：2026年10月20日（iPhone 版の広告の項を更新）</p>
 
 <p>AID GAMES（以下「当方」）は、アプリ「ROBO SPEED」（Android 版・iPhone 版。以下「本アプリ」）における
 利用者の情報の取り扱いについて、以下のとおり定めます。</p>
@@ -123,8 +128,12 @@
 <p><strong>Android 版：</strong>Android の「設定 → プライバシー → 広告」から、広告IDの削除や
 パーソナライズド広告の無効化を利用者ご自身で行えます。</p>
 
-<p><strong>iPhone 版：</strong>本アプリは、iPhone の「App からのトラッキング要求」（App Tracking Transparency）による許可を求めません。
-そのため、iPhone の広告識別子（IDFA）は本アプリから AdMob へ渡されません。</p>
+<p><strong>iPhone 版：</strong>初めて起動したときに、iPhone の「App からのトラッキング要求」（App Tracking Transparency）の画面で、
+広告に使う追跡を許可するかどうかをお尋ねします。
+<strong>許可された場合に限り</strong>、iPhone の広告識別子（IDFA）が AdMob によって利用され、利用者に合わせた広告が表示されます。
+許可しない場合は IDFA は利用されず、利用者に合わせない広告が表示されます。<strong>どちらを選んでも、ゲームはすべて遊べます。</strong></p>
+
+<p>選んだ内容は、iPhone の「設定 → プライバシーとセキュリティ → トラッキング」から、いつでも変更できます。</p>
 
 <h2>5. 第三者への提供</h2>
 
