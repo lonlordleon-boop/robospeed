@@ -249,6 +249,12 @@ Debug と Release の両方に入っている。Xcode の画面（3-5）で入�
 `app/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` を、
 `app/store/ios_icon_1024.png` で上書きした（最初は Capacitor の青い「×」の仮の絵だった）。ファイル名はそのまま。
 
+### 8-3b. AppDelegate.swift（★2026-10-24）
+
+`app/ios/App/App/AppDelegate.swift` に、9章の「直しかた」のとおり足した：
+先頭に `import AVFoundation`、`didFinishLaunchingWithOptions` の `return true` の前に `setCategory(.ambient, mode: .default)` と `setActive(true)` の2行。
+（消音モードの件を実際に直したのは `docs/playtest.html` の `navigator.audioSession` のほう。9章の「結果」参照）
+
 ### 8-4. 実機で動かすまでにつまずいたところ
 
 - **Xcode に Apple ID を入れる場所：** Xcode 27 では「Xcode」→「Settings…」→「**Apple Accounts**」→ 右の「**Sign In…**」。左下の「＋」は無い
@@ -277,7 +283,33 @@ xcrun devicectl device process launch --terminate-existing --device <iPhone の�
 
 ---
 
-## 9. 消音モードで動画の音が鳴ってしまう（2026-10-23・未着手）
+## 9. 消音モードで動画の音が鳴ってしまう（2026-10-23・**2026-10-24 に直した**）
+
+### ★結果（2026-10-24・Mac で直して、本人の iPhone で確かめた）
+
+**下の「直しかた」（AppDelegate.swift の2行）だけでは直らなかった。** 入れて実機で試しても、消音モードで動画の音が鳴った。
+起動時に `ambient` にしても、**動画が流れる瞬間に WebKit が音のカテゴリを `playback` に上書きする**ため。
+
+**直ったのは、ページの側から WebKit に頼む方法：**
+
+```js
+if (navigator.audioSession) { navigator.audioSession.type = "ambient"; }
+```
+
+- `docs/playtest.html` の効果音の仕組み（`let seCtx = null;`）の直前に入れた。BUILD **2026-10-24a**
+- iPhone のアプリ（WKWebView）の中でも `navigator.audioSession` が使えることを、実機のログで確かめた（最初は `auto`、入れると `ambient`）
+- 本人の iPhone で：**消音モードで5色そろえる → 動画の音は黙る。消音を切る → 音が出る**
+- Android の Chrome には `navigator.audioSession` が無いので、**何も起きない**（Android は元から問題なし）
+
+> 下の「ブラウザ側（JavaScript）では直せません」は、**消音スイッチの状態を読む**ことについては正しい。
+> ただ、**音のカテゴリを指定する**ことは JavaScript からできた。
+
+**AppDelegate.swift の2行も、入れたまま残してある**（直ったのは JavaScript のほうだが、害は無く、
+アプリの音の扱いを `ambient` にそろえておく意味はある）。`app/ios` を作り直したときは、下の「直しかた」のとおり入れ直す。
+
+**App Store にはまだ出していない。** 出すときは Build を 3 に上げて Archive → アップロード（6章）。
+
+以下は Windows 側で 2026-10-23 に書いたもの。
 
 ### 何が起きているか
 

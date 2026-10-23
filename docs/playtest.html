@@ -7377,6 +7377,23 @@ const SE_VOL = { tap:0.5, over:0.5, purge:0.5, launch:0.7, hit:0.7, kill:0.5, st
    Web Audio なら要素を作らない。**1つの文脈から、鳴らすたびに使い捨ての
    音源を生やすだけ**なので、上限も取り合いも起きない。反応も速い。 */
 
+/* ---- 音のカテゴリを ambient にする（iPhone・★2026-10-24）----
+   **消音モードなのに、ピュアカラーの動画の音だけが鳴っていた**（2026-10-23 の実機報告）。
+   効果音・BGM（Web Audio）は消音に従うのに、<video> は WebKit が再生の瞬間に
+   音のカテゴリを playback（消音を無視する）に切り替えるため。
+
+   **アプリ側（AppDelegate.swift）で起動時に ambient にしても直らなかった。**
+   動画が流れる瞬間に WebKit が上書きする。**ページの側から WebKit に頼む**と直る
+   （navigator.audioSession・iPhone のアプリの中でも使えることを実機で確かめた）。
+   ambient は「消音に従う・ほかのアプリの音楽を止めない」。ゲームに向いた設定。
+
+   消音スイッチの状態を読む手段は無いが、**カテゴリを指定することはできる。**
+   Android（Chrome）にはこの仕組みが無いので、何も起きない（Android は元から問題なし）。
+   **音を鳴らす前に**済ませる必要があるので、ここ（読み込みの最初のほう）で行う。 */
+try {
+  if (navigator.audioSession) { navigator.audioSession.type = "ambient"; }
+} catch (e) { /* 使えない環境では今までどおり */ }
+
 let seCtx = null;
 const SE_BUF = {};   // 名前 → 復号済みの波形
 
@@ -7982,7 +7999,7 @@ function keepInView(el) {
 }
 
 // 版の表示。読み込まれている版が古いと、直したはずの不具合がそのまま残って見える。
-const BUILD = "2026-10-23b 音を切ったら、流れている動画もその場で黙る";
+const BUILD = "2026-10-24a iPhone の消音モードで動画も黙る（audioSession を ambient に）";
 
 load();
 diffLoad();      // 難易度を当てる（9-6k）。**load() の後**でないと調整値に上書きされる
