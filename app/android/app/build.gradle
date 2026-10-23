@@ -32,9 +32,14 @@ android {
                          ＋ お知らせを戻るボタンで閉じられるように（9-6ag）
             11 (1.0.9) … 結果画面の作る側向けのメモ（「続ける？」で広告…）を消す
                          ＋ iPhone 版の準備（Android の動きは変わらない・15-13）
-                         ＋ iPhone で見つけた作業台の崩れの直し（Android の見た目は変わらない） */
-        versionCode 11
-        versionName "1.0.9"
+                         ＋ iPhone で見つけた作業台の崩れの直し（Android の見た目は変わらない）
+            12 (1.0.10)… **音を切ったとき、流れている動画もその場で黙るように。**
+                         ミュートを決めていたのが再生を始める瞬間だけで、
+                         驚いて慌てて切っても、その1本は鳴り終わるまで止まらなかった。
+                         ＋ iPhone の消音モードの直し（navigator.audioSession）。
+                         **Android には無い仕組みなので、こちらの動きは変わらない** */
+        versionCode 12
+        versionName "1.0.10"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
