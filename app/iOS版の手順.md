@@ -31,6 +31,12 @@
 
 **Android 版は Google Play で公開中（1.0.8）。** 同じ `docs/playtest.html` から作るので、ゲームの中身は Android と同じ。
 
+> **★2026-10-23 追記：iPhone 版は App Store で公開済み（1.0.9・Build 2・日本のみ）。**
+> `https://apps.apple.com/jp/app/robo-speed/id6824338951`。Android も 1.0.9。
+> サイト（トップと紹介ページ）に App Store のボタンを足した。
+> AdMob の iOS 版はストアにつないだ（App Store・6824338951）が、**app-ads.txt の確認（Verify app）が済むまで広告は制限中**。
+> 公開されたばかりで Google がまだ読みに来ていないだけと見ている（ファイルの中身・場所は確かめ済み）。数日おいて「Verify app」を押す。
+
 ---
 
 ## 2. 組み立ての流れ（Android と同じ3段＋1）
