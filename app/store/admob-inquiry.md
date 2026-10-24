@@ -57,3 +57,11 @@ Android アプリへの要求が HTTP 403 で拒否されている理由と、
 
 - 内容を仕様書 15-7 の末尾に追記する
 - 直すものがコード側にあれば `docs/playtest.html`、設定なら AdMob 側
+
+---
+
+## 投稿先（2026-10-24）
+
+AdMob ヘルプ コミュニティ（個別のメール・チャット窓口は出なかった）
+https://support.google.com/admob/thread/474336709
+カテゴリ：広告の管理／プラットフォーム：Android
