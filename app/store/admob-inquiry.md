@@ -234,3 +234,39 @@ Priority → 3つのうち「本番で広告が出ない」に一番近いもの
 
 **2026-10-25 に送信済み（チケット ID 0-1354000042036）。** 返事の目安は2営業日（10/27 火ごろ）。 選んだもの：サンプル＝試みなかった／テスト広告ユニット＝再現できなかった（テストなら出る）／
 優先度＝技術的なトラブルシューティングとサービスに関する質問。添付・共有なし。返事待ち。
+
+---
+
+## 追加で分かったこと（2026-10-26）— 返事が来たら付け足す
+
+1. **iPhone 版は配信されている。** 2026-10-25 20:00 に「広告の配信が始まりました」のメール。レポートに出たのは iPhone だけ
+2. **配った AAB の中のアプリIDは正しい。** 1.0.10 の AAB の `base/manifest/AndroidManifest.xml` を直接読んで、
+   `ca-app-pub-2313067186861650~1860567458` を確かめた
+3. **別の人の Android でも同じ。** 友達の端末（楽天モバイル回線・Play 版・機種は未確認）の一時停止と結果画面で、
+   広告のぶんのすき間（AdMob の準備が済んで、頼む直前に空く）があるのに、広告が出ない。
+   → 開発者の端末だけの問題ではない。頼みには行けているが、返ってこない
+4. **まだ見ていないもの：** 10/26・10/27 の Android のリクエスト数（友達が遊んだ日。日付は 26 か 27 の未明）
+
+### 返事への付け足し（英文・チケット 0-1354000042036 に返信するとき）
+
+```
+Additional information:
+
+1. The iOS app under the same publisher started serving on 2026-10-25 (we received the
+   "ads are now serving" e-mail), so the account, payments and app-ads.txt are fine.
+   Only the Android app is affected.
+
+2. We extracted the AndroidManifest from the exact AAB uploaded to Google Play (1.0.10)
+   and confirmed the App ID is ca-app-pub-2313067186861650~1860567458.
+
+3. The issue is not limited to the developer's device. On another user's Android device
+   (Play Store install, different carrier), the app initializes the SDK and requests the
+   banner (the layout reserves the banner space only after MobileAds initialization
+   succeeds), but no ad is returned. Same result as on our Pixel 9a (HTTP 403 / error 3).
+
+Ad requests from this device on 2026-10-26/27 (JST, around 00:30) should exist, but the
+Android app still shows no rows in AdMob reports.
+```
+
+> 4 のレポートを見て、10/26・27 も Android が 0 だったら、最後の段落はそのまま使う。
+> 数字が出ていたら、最後の段落を「the requests now appear in reports (N requests, 0 impressions)」に書き換える。
