@@ -231,3 +231,6 @@ Steps to reproduce:
 Did you attempt to reproduce with examples? → No（サンプルアプリでは試していない）
 Did you attempt to reproduce with test ad unit IDs? → Yes, test ads work（テスト用ユニットでは出る）
 Priority → 3つのうち「本番で広告が出ない」に一番近いもの
+
+**2026-10-25 に送信済み。** 選んだもの：サンプル＝試みなかった／テスト広告ユニット＝再現できなかった（テストなら出る）／
+優先度＝技術的なトラブルシューティングとサービスに関する質問。添付・共有なし。返事待ち。
