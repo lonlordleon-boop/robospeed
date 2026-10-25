@@ -169,3 +169,65 @@ iOS 版では収益が発生していますが、まだ支払いの基準額に�
 
 「広告が表示されない」を選んでも、言語を English に替えても、**出るのはコミュニティだけ**。
 支払い実績が無いうちは個別窓口は出ない、で確定扱い。→ SDK 開発者フォーラムへ。
+
+---
+
+## SDK の問い合わせフォーム（2026-10-25）
+
+開発者フォーラム（Google グループ）は参加しても「発言する権限がない」で投稿できなかった。
+SDK のサポートページ（https://developers.google.com/admob/android/support）の案内は
+**「Contact support」＝SDK 専用のフォーム**：https://support.google.com/admob/contact/contact_us_gma_sdk
+（英語。gethelp と違い、支払い実績の条件は書かれていない）
+
+| 欄 | 入れる値 |
+|---|---|
+| Platform | Android |
+| Publisher ID | pub-2313067186861650 |
+| Google Mobile Ads SDK version | play-services-ads 25.4.x (via @capacitor-community/admob 8.1.0) |
+| Device model | Pixel 9a |
+| OS version | Android 17 |
+| Play / Apple store App ID | jp.aid.robospeed |
+| Ad Unit ID | ca-app-pub-2313067186861650/6921322445 |
+
+Subject:
+```
+Approved Android app: every production ad request gets HTTP 403, 0 requests in reports
+```
+
+Issue description:
+```
+Our Android app (jp.aid.robospeed, live on Google Play since 2026-10-13) is approved in AdMob
+("Ready" / ad serving enabled, approval e-mail 2026-10-14; Policy Center: no issues), but no
+production ads are ever served. AdMob reports show 0 requests / 0 impressions for the Android
+app over the last 30 days, while about 16 users have installed it.
+
+On the device, every production request fails:
+  W Ads: Received error HTTP response code: 403
+  I Ads: Ad failed to load : 3
+
+With the same build configuration on the same device, the Google test banner unit
+(ca-app-pub-3940256099942544/6300978111) loads and renders fine, so the SDK, plugin and
+layout are working. The iOS app under the same publisher (ca-app-pub-2313067186861650~5617404084)
+serves normally (52 requests / 16 impressions in the same period).
+
+Android App ID: ca-app-pub-2313067186861650~1860567458
+Banner units (both under the Android app): /6921322445 (pause screen), /8641598226 (result screen)
+app-ads.txt is published at https://aidgames.jp/app-ads.txt and verified.
+
+Since the server answers 403 instead of a 200 no-fill, and the requests are not counted in
+reports, this does not look like a lack of inventory. Could you check why the ad server rejects
+requests from this approved Android app?
+```
+
+Steps to reproduce:
+```
+1. Install ROBO SPEED (jp.aid.robospeed) 1.0.10 from Google Play on an Android device.
+2. Start a game and open the pause screen (or finish a run to reach the result screen).
+3. The app requests a banner from ca-app-pub-2313067186861650/6921322445 (or /8641598226).
+4. logcat shows "Received error HTTP response code: 403" and "Ad failed to load : 3";
+   no ad is displayed and the request does not appear in AdMob reports.
+```
+
+Did you attempt to reproduce with examples? → No（サンプルアプリでは試していない）
+Did you attempt to reproduce with test ad unit IDs? → Yes, test ads work（テスト用ユニットでは出る）
+Priority → 3つのうち「本番で広告が出ない」に一番近いもの
