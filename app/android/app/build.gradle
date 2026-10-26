@@ -37,9 +37,13 @@ android {
                          ミュートを決めていたのが再生を始める瞬間だけで、
                          驚いて慌てて切っても、その1本は鳴り終わるまで止まらなかった。
                          ＋ iPhone の消音モードの直し（navigator.audioSession）。
-                         **Android には無い仕組みなので、こちらの動きは変わらない** */
-        versionCode 12
-        versionName "1.0.10"
+                         **Android には無い仕組みなので、こちらの動きは変わらない**
+            13 (1.0.11)… **広告ユニットを「標準」のものに差し替え。**
+                         前のユニットは「パートナーでの入札」用に作られていて、
+                         アプリから頼むと HTTP 403 で断られ、一度も広告が出ていなかった（仕様書 15-7）。
+                         iPhone のユニットは元から標準なので、iPhone 版は出し直さない */
+        versionCode 13
+        versionName "1.0.11"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
