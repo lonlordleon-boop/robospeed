@@ -287,3 +287,48 @@ Android app still shows no rows in AdMob reports.
 案内：「Ad units, ad formats, and ad types」のヘルプ記事。
 
 iOS のユニット（`/2991240743`・`/9476013186`）は配信されているので、こちらは通常のユニットのはず。
+
+---
+
+## 解決（2026-10-26〜27）
+
+標準のユニット（結果画面 `/8381636949`・一時停止 `/1241513525`）に差し替えた **Android 1.0.11** を 10/26 に公開。
+- 本人の Pixel：Play 版 1.0.11 に「Test Ad」（テストデバイス扱い・返事が返る＝403 解消）
+- ゴコウの Android：一時停止・結果画面とも本物の広告
+- AdMob レポート（過去7日・10/27 に確認）：**Android リクエスト 2・マッチ率 100%・表示 2・推定 ¥15**。初めて Android の行が出た
+
+### SDK サポートへのお礼（ケース 00491339 のメールに返信）
+
+```
+Hi Vamshi,
+
+Thank you very much. That was exactly the cause.
+
+I created two new Standard banner units (without "Partner bidding"),
+replaced the IDs in the app and released version 1.0.11 on Google Play.
+Real ads are now being served on Android, and the requests and impressions
+appear in the AdMob reports.
+
+Thanks again for checking the account so quickly. This case can be closed.
+
+Best regards,
+AID GAMES
+```
+
+### コミュニティへの解決報告
+
+```
+解決しましたので、同じ症状の方のために原因を書いておきます。
+
+原因は、Android 版の広告ユニットを作るときに
+「パートナーでの入札（この広告ユニットを別のメディエーション プラットフォームでの
+リアルタイム入札に使用している）」にチェックが入っていたことでした。
+このユニットはアプリの SDK から直接リクエストすると、サーバーが HTTP 403 で断り、
+レポートにもリクエストとして記録されません（SDK サポートに確認しました）。
+
+広告ユニットの一覧で「広告ユニットの配信タイプ」を「パートナーでの入札」に切り替えると、
+該当するユニットが表示されます。チェックは作成後に変更できないため、
+チェックなし（標準）で作り直し、ID を差し替えたアプリを公開して解決しました。
+
+Jun KOBAYASHI さん、ご案内ありがとうございました。
+```
