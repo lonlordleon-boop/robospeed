@@ -272,3 +272,18 @@ Android app still shows no rows in AdMob reports.
 
 > 4 のレポートを見て、10/26・27 も Android が 0 だったら、最後の段落はそのまま使う。
 > 数字が出ていたら、最後の段落を「the requests now appear in reports (N requests, 0 impressions)」に書き換える。
+
+---
+
+## SDK サポートの返事（2026-10-26・ケース 00491339・Sellside Support の Vamshi）
+
+**原因が分かった。** Android の2つのユニット（`/6921322445`・`/8641598226`）は
+**「Partner Bidding（パートナー入札）」のユニットとして作られていて、「Standard（通常）」ではない。**
+パートナー入札のユニットは、Google が**よそのメディエーションの入札に参加するため**のもので、
+アプリの SDK から直接頼まれると、**サーバーが仕様どおり HTTP 403 で断る。**
+（リクエストとして集計されないのもこのため）
+
+直しかた：AdMob の「広告ユニット」タブで **Standard の広告ユニットを新しく作り**、その ID をアプリに入れてビルドし直す。
+案内：「Ad units, ad formats, and ad types」のヘルプ記事。
+
+iOS のユニット（`/2991240743`・`/9476013186`）は配信されているので、こちらは通常のユニットのはず。
